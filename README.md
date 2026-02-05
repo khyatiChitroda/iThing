@@ -24,6 +24,9 @@ This repository contains the Android client implementation aligned with the iThi
 
 ## ✅ ITHING-001: Initialize Android Project
 
+### Jira Reference
+- Issue: ITHING-001 – Initialize Android Project
+
 ### Objective
 Establish a stable and modern Android project foundation to support future feature development.
 
