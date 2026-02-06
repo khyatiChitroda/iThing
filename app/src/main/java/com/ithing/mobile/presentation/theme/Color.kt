@@ -1,4 +1,4 @@
-package com.ithing.mobile.ui.theme
+package com.ithing.mobile.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
