@@ -22,12 +22,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAuthDataStore(
-        authDataStore: AuthDataStore
-    ): AuthDataStore = authDataStore
-
-    @Provides
-    @Singleton
     fun provideAuthRepository(
         authRepositoryImpl: AuthRepositoryImpl
     ): AuthRepository = authRepositoryImpl
