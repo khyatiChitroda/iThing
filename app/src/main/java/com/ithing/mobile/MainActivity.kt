@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.ithing.mobile.presentation.feature.login.LoginRoute
+import com.ithing.mobile.presentation.feature.login.LoginViewModel
 import com.ithing.mobile.presentation.theme.IThingMobileTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -20,14 +22,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            IThingMobileTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-            }
+            val loginViewModel: LoginViewModel =
+                androidx.lifecycle.viewmodel.compose.viewModel()
+
+            LoginRoute(viewModel = loginViewModel)
+
         }
     }
 }
