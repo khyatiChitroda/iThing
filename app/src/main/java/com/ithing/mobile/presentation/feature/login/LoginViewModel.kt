@@ -18,14 +18,21 @@ class LoginViewModel @Inject constructor(
 
 
     fun onUsernameChange(username: String) {
-        _uiState = _uiState.copy(username = username)
+        _uiState = _uiState.copy(
+            username = username,
+            errorMessage = null
+        )
     }
 
     fun onPasswordChange(password: String) {
-        _uiState = _uiState.copy(password = password)
+        _uiState = _uiState.copy(
+            password = password,
+            errorMessage = null
+        )
     }
-
     fun login() {
+        if (_uiState.isLoading) return
+
         if (_uiState.username.isBlank() || _uiState.password.isBlank()) {
             _uiState = _uiState.copy(
                 errorMessage = "Username and password cannot be empty"

@@ -58,7 +58,9 @@ fun LoginScreen(
             Button(
                 onClick = onLoginClick,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading
+                enabled = !uiState.isLoading &&
+                        uiState.username.isNotBlank() &&
+                        uiState.password.isNotBlank()
             ) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator(
