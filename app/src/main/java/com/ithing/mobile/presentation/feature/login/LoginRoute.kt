@@ -16,4 +16,9 @@ fun LoginRoute(
         onPasswordChange = viewModel::onPasswordChange,
         onLoginClick = viewModel::login
     )
+
+    if (uiState.isLoginSuccessful) {
+        // Temporary: log or show a placeholder
+        // Later: navigate to dashboard
+    }
 }
