@@ -1,6 +1,7 @@
 package com.ithing.mobile.di
 
 import android.content.Context
+import com.ithing.mobile.data.local.datastore.AuthDataStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -16,4 +17,10 @@ object AppModule {
     fun provideApplicationContext(
         @ApplicationContext context: Context
     ): Context = context
+
+    @Provides
+    @Singleton
+    fun provideAuthDataStore(
+        authDataStore: AuthDataStore
+    ): AuthDataStore = authDataStore
 }
