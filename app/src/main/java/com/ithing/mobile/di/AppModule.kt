@@ -8,6 +8,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import jakarta.inject.Singleton
+import com.ithing.mobile.data.repository.AuthRepositoryImpl
+import com.ithing.mobile.domain.repository.AuthRepository
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -23,4 +25,10 @@ object AppModule {
     fun provideAuthDataStore(
         authDataStore: AuthDataStore
     ): AuthDataStore = authDataStore
+
+    @Provides
+    @Singleton
+    fun provideAuthRepository(
+        authRepositoryImpl: AuthRepositoryImpl
+    ): AuthRepository = authRepositoryImpl
 }
