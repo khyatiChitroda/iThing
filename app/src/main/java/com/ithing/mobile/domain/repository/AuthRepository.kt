@@ -3,13 +3,8 @@ package com.ithing.mobile.domain.repository
 import com.ithing.mobile.domain.model.User
 
 interface AuthRepository {
-
     suspend fun login(
         username: String,
         password: String
-    ): User
-
-    suspend fun logout()
-
-    suspend fun getLoggedInUser(): User?
+    )
 }

@@ -4,62 +4,56 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ithing.mobile.domain.usecase.LoginUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import jakarta.inject.Inject
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import javax.inject.Inject
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
 ) : ViewModel() {
 
-    private var _uiState = LoginUiState()
-    val uiState: LoginUiState
-        get() = _uiState
-
+    var uiState by mutableStateOf(LoginUiState())
 
     fun onUsernameChange(username: String) {
-        _uiState = _uiState.copy(
+        uiState = uiState.copy(
             username = username,
             errorMessage = null
         )
     }
 
     fun onPasswordChange(password: String) {
-        _uiState = _uiState.copy(
+        uiState = uiState.copy(
             password = password,
             errorMessage = null
         )
     }
     fun login() {
-        if (_uiState.isLoading) return
+        if (uiState.isLoading) return
 
-        if (_uiState.username.isBlank() || _uiState.password.isBlank()) {
-            _uiState = _uiState.copy(
+        if (uiState.username.isBlank() || uiState.password.isBlank()) {
+            uiState = uiState.copy(
                 errorMessage = "Username and password cannot be empty"
             )
             return
         }
 
         viewModelScope.launch {
-            _uiState = _uiState.copy(
-                isLoading = true,
-                errorMessage = null
-            )
+            uiState = uiState.copy(isLoading = true, errorMessage = null)
 
             try {
-                loginUseCase(
-                    username = _uiState.username,
-                    password = _uiState.password
-                )
+                loginUseCase(uiState.username, uiState.password)
 
-                _uiState = _uiState.copy(
+                uiState = uiState.copy(
                     isLoading = false,
                     isLoginSuccessful = true
                 )
             } catch (e: Exception) {
-                _uiState = _uiState.copy(
+                uiState = uiState.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "Login failed"
+                    errorMessage = "Invalid credentials or token expired"
                 )
             }
         }

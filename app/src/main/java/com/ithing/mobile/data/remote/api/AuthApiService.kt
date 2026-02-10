@@ -1,14 +1,14 @@
 package com.ithing.mobile.data.remote.api
 
 import com.ithing.mobile.data.remote.dto.LoginRequestDto
-import com.ithing.mobile.data.remote.dto.LoginResponseDto
 import retrofit2.http.Body
+import retrofit2.http.Header
 import retrofit2.http.POST
 
 interface AuthApiService {
-
-    @POST("api/auth/login")
-    suspend fun login(
+    @POST("login-attempt")
+    suspend fun loginAttempt(
+        @Header("Authorization") authToken: String,
         @Body request: LoginRequestDto
-    ): LoginResponseDto
+    )
 }

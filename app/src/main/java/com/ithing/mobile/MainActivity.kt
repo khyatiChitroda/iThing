@@ -15,6 +15,9 @@ import com.ithing.mobile.presentation.feature.login.LoginRoute
 import com.ithing.mobile.presentation.feature.login.LoginViewModel
 import com.ithing.mobile.presentation.theme.IThingMobileTheme
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.navigation.compose.rememberNavController
+import com.ithing.mobile.presentation.navigation.AppNavGraph
+
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -22,10 +25,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val loginViewModel: LoginViewModel =
-                androidx.lifecycle.viewmodel.compose.viewModel()
-
-            LoginRoute(viewModel = loginViewModel)
+            IThingMobileTheme {
+                val navController = rememberNavController()
+                AppNavGraph(navController = navController)
+            }
 
         }
     }
