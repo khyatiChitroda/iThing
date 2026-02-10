@@ -16,15 +16,17 @@ fun AppNavGraph(
         navController = navController,
         startDestination = AppDestination.Login.route
     ) {
-
         composable(AppDestination.Login.route) {
             val loginViewModel: LoginViewModel = viewModel()
-            LoginRoute(viewModel = loginViewModel)
+            LoginRoute(
+                viewModel = loginViewModel,
+                navController = navController
+            )
         }
 
         composable(AppDestination.Dashboard.route) {
-            // Placeholder for now
-            // DashboardRoute()
+            // Temporary placeholder
+            androidx.compose.material3.Text("Dashboard Screen")
         }
     }
 }
