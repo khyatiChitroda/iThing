@@ -4,11 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ithing.mobile.domain.usecase.LoginUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import jakarta.inject.Inject
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import javax.inject.Inject
+
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
@@ -40,16 +41,10 @@ class LoginViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            uiState = uiState.copy(
-                isLoading = true,
-                errorMessage = null
-            )
+            uiState = uiState.copy(isLoading = true, errorMessage = null)
 
             try {
-                loginUseCase(
-                    username = uiState.username,
-                    password = uiState.password
-                )
+                loginUseCase(uiState.username, uiState.password)
 
                 uiState = uiState.copy(
                     isLoading = false,
@@ -58,7 +53,7 @@ class LoginViewModel @Inject constructor(
             } catch (e: Exception) {
                 uiState = uiState.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "Login failed"
+                    errorMessage = "Invalid credentials or token expired"
                 )
             }
         }

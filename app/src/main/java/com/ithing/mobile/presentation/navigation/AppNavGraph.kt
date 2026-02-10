@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.ithing.mobile.presentation.feature.login.LoginRoute
 import com.ithing.mobile.presentation.feature.login.LoginViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 @Composable
 fun AppNavGraph(
@@ -17,7 +18,7 @@ fun AppNavGraph(
         startDestination = AppDestination.Login.route
     ) {
         composable(AppDestination.Login.route) {
-            val loginViewModel: LoginViewModel = viewModel()
+            val loginViewModel: LoginViewModel = hiltViewModel()
             LoginRoute(
                 viewModel = loginViewModel,
                 navController = navController
