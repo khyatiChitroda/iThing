@@ -7,4 +7,6 @@ interface AuthRepository {
         username: String,
         password: String
     )
+
+    suspend fun logout()
 }

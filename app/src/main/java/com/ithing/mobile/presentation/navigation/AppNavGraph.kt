@@ -8,6 +8,8 @@ import androidx.navigation.compose.composable
 import com.ithing.mobile.presentation.feature.login.LoginRoute
 import com.ithing.mobile.presentation.feature.login.LoginViewModel
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.ithing.mobile.presentation.feature.dashboard.DashboardRoute
+import com.ithing.mobile.presentation.feature.dashboard.DashboardViewModel
 import com.ithing.mobile.presentation.feature.splash.SplashRoute
 
 @Composable
@@ -31,8 +33,9 @@ fun AppNavGraph(
         }
 
         composable(AppDestination.Dashboard.route) {
-            // Temporary placeholder
-            androidx.compose.material3.Text("Dashboard Screen")
+            val dashboardViewModel: DashboardViewModel = hiltViewModel()
+            DashboardRoute(viewModel = dashboardViewModel,
+                navController = navController)
         }
     }
 }
