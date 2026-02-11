@@ -2,7 +2,6 @@ package com.ithing.mobile.presentation.feature.login
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ithing.mobile.presentation.navigation.AppDestination
 

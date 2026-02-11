@@ -1,0 +1,38 @@
+package com.ithing.mobile.presentation.feature.splash
+
+import androidx.compose.runtime.*
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.ithing.mobile.presentation.navigation.AppDestination
+
+@Composable
+fun SplashRoute(
+    navController: NavController,
+    viewModel: SplashViewModel = hiltViewModel()
+) {
+    val destination = viewModel.destination
+
+    LaunchedEffect(destination) {
+        when (destination) {
+            SplashDestination.Authenticated -> {
+                navController.navigate(AppDestination.Dashboard.route) {
+                    popUpTo(AppDestination.Splash.route) {
+                        inclusive = true
+                    }
+                }
+            }
+
+            SplashDestination.Unauthenticated -> {
+                navController.navigate(AppDestination.Login.route) {
+                    popUpTo(AppDestination.Splash.route) {
+                        inclusive = true
+                    }
+                }
+            }
+
+            null -> Unit
+        }
+    }
+
+    SplashScreen()
+}
