@@ -33,4 +33,8 @@ class AuthRepositoryImpl @Inject constructor(
     // Persist token
     authDataStore.saveAccessToken(token)
     }
+
+    override suspend fun logout() {
+        authDataStore.clear()
+    }
 }
