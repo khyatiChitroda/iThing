@@ -1,7 +1,7 @@
 package com.ithing.mobile.di
 
 import com.ithing.mobile.core.auth.AuthTokenProvider
-import com.ithing.mobile.core.auth.StaticAuthTokenProvider
+import com.ithing.mobile.core.auth.RealAuthTokenProvider
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -15,6 +15,6 @@ abstract class AuthModule {
     @Binds
     @Singleton
     abstract fun bindAuthTokenProvider(
-        impl: StaticAuthTokenProvider
+        impl: RealAuthTokenProvider
     ): AuthTokenProvider
 }
