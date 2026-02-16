@@ -8,6 +8,7 @@ sealed class AppDestination(val route: String) {
 
     object Dashboard : AppDestination("dashboard")
 
+    object Home : AppDestination("home")
     // Future examples:
     // object Reports : AppDestination("reports")
     // object Settings : AppDestination("settings")
