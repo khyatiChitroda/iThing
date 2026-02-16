@@ -16,15 +16,15 @@ class AuthInterceptor @Inject constructor(
 
         val token = authTokenProvider.getToken()
 
-        val requestBuilder = originalRequest.newBuilder()
-
-        if (!token.isNullOrBlank()) {
-            requestBuilder.addHeader(
-                "Authorization",
-                token
-            )
+        // If no token, proceed without modification
+        if (token.isNullOrBlank()) {
+            return chain.proceed(originalRequest)
         }
 
-        return chain.proceed(requestBuilder.build())
+        val authenticatedRequest = originalRequest.newBuilder()
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        return chain.proceed(authenticatedRequest)
     }
 }
