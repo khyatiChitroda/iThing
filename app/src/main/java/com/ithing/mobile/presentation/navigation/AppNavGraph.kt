@@ -10,6 +10,7 @@ import com.ithing.mobile.presentation.feature.login.LoginViewModel
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.ithing.mobile.presentation.feature.dashboard.DashboardRoute
 import com.ithing.mobile.presentation.feature.dashboard.DashboardViewModel
+import com.ithing.mobile.presentation.feature.home.HomeScreen
 import com.ithing.mobile.presentation.feature.splash.SplashRoute
 
 @Composable
@@ -31,7 +32,9 @@ fun AppNavGraph(
                 navController = navController
             )
         }
-
+        composable(AppDestination.Home.route) {
+            HomeScreen()
+        }
         composable(AppDestination.Dashboard.route) {
             val dashboardViewModel: DashboardViewModel = hiltViewModel()
             DashboardRoute(viewModel = dashboardViewModel,
