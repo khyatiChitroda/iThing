@@ -1,6 +1,5 @@
 package com.ithing.mobile.core.network
 
-import com.ithing.mobile.core.auth.AuthTokenProvider
 import com.ithing.mobile.core.session.SessionManager
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
