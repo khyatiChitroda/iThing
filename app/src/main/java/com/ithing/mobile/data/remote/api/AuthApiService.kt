@@ -1,5 +1,7 @@
 package com.ithing.mobile.data.remote.api
 
+import com.ithing.mobile.data.remote.dto.ForgotPasswordRequestDto
+import com.ithing.mobile.data.remote.dto.ForgotPasswordResponseDto
 import com.ithing.mobile.data.remote.dto.LoginRequestDto
 import com.ithing.mobile.data.remote.dto.LoginResponseDto
 import retrofit2.http.Body
@@ -11,4 +13,9 @@ interface AuthApiService {
     suspend fun loginAttempt(
         @Body request: LoginRequestDto
     ) : LoginResponseDto
+
+    @POST("forgot-password")
+    suspend fun forgotPassword(
+        @Body request: ForgotPasswordRequestDto
+    ): ForgotPasswordResponseDto
 }

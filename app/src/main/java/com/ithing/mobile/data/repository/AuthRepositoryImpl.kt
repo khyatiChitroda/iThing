@@ -3,6 +3,7 @@ package com.ithing.mobile.data.repository
 import com.ithing.mobile.core.security.HashUtil
 import com.ithing.mobile.data.local.datastore.AuthDataStore
 import com.ithing.mobile.data.remote.api.AuthApiService
+import com.ithing.mobile.data.remote.dto.ForgotPasswordRequestDto
 import com.ithing.mobile.data.remote.dto.LoginRequestDto
 import com.ithing.mobile.domain.repository.AuthRepository
 import javax.inject.Inject
@@ -36,5 +37,15 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun logout() {
         authDataStore.clear()
+    }
+
+    override suspend fun forgotPassword(email: String) {
+        val response = authApiService.forgotPassword(
+            ForgotPasswordRequestDto(id = email)
+        )
+
+        if (!response.success) {
+            throw RuntimeException(response.message)
+        }
     }
 }
