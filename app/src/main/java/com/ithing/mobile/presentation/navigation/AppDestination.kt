@@ -9,6 +9,9 @@ sealed class AppDestination(val route: String) {
     object Dashboard : AppDestination("dashboard")
 
     object Home : AppDestination("home")
+
+    object ForgotPassword : AppDestination("forgot_password")
+
     // Future examples:
     // object Reports : AppDestination("reports")
     // object Settings : AppDestination("settings")

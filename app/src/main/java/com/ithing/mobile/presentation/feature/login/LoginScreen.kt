@@ -21,7 +21,8 @@ fun LoginScreen(
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
     onTogglePasswordVisibility: () -> Unit,
-    onRememberMeChange: (Boolean) -> Unit
+    onRememberMeChange: (Boolean) -> Unit,
+    onForgotPasswordClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -99,7 +100,7 @@ fun LoginScreen(
                     Text("Remember me")
                 }
 
-                TextButton(onClick = { /* TODO: Forgot Password */ }) {
+                TextButton(onClick = onForgotPasswordClick) {
                     Text("Forgot Password?")
                 }
             }

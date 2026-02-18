@@ -28,6 +28,9 @@ fun LoginRoute(
         onPasswordChange = viewModel::onPasswordChange,
         onLoginClick = viewModel::login,
         onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
-        onRememberMeChange = viewModel::onRememberMeChange
+        onRememberMeChange = viewModel::onRememberMeChange,
+        onForgotPasswordClick = {
+            navController.navigate(AppDestination.ForgotPassword.route)
+        }
     )
 }

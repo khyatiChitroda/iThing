@@ -9,4 +9,6 @@ interface AuthRepository {
     )
 
     suspend fun logout()
+
+    suspend fun forgotPassword(email: String)
 }
