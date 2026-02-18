@@ -26,6 +26,8 @@ fun LoginRoute(
         uiState = uiState,
         onUsernameChange = viewModel::onUsernameChange,
         onPasswordChange = viewModel::onPasswordChange,
-        onLoginClick = viewModel::login
+        onLoginClick = viewModel::login,
+        onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
+        onRememberMeChange = viewModel::onRememberMeChange
     )
 }

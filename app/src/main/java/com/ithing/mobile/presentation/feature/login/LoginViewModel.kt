@@ -20,6 +20,7 @@ class LoginViewModel @Inject constructor(
     fun onUsernameChange(username: String) {
         uiState = uiState.copy(
             username = username,
+            usernameError = null,
             errorMessage = null
         )
     }
@@ -27,21 +28,49 @@ class LoginViewModel @Inject constructor(
     fun onPasswordChange(password: String) {
         uiState = uiState.copy(
             password = password,
+            passwordError = null,
             errorMessage = null
         )
     }
+
+    fun togglePasswordVisibility() {
+        uiState = uiState.copy(
+            isPasswordVisible = !uiState.isPasswordVisible
+        )
+    }
+
+    fun onRememberMeChange(value: Boolean) {
+        uiState = uiState.copy(rememberMe = value)
+    }
+
     fun login() {
         if (uiState.isLoading) return
 
-        if (uiState.username.isBlank() || uiState.password.isBlank()) {
-            uiState = uiState.copy(
-                errorMessage = "Username and password cannot be empty"
-            )
-            return
+        var hasError = false
+
+        if (uiState.username.isBlank()) {
+            uiState = uiState.copy(usernameError = "Email cannot be empty")
+            hasError = true
+        } else if (!android.util.Patterns.EMAIL_ADDRESS
+                .matcher(uiState.username)
+                .matches()
+        ) {
+            uiState = uiState.copy(usernameError = "Invalid email format")
+            hasError = true
         }
 
+        if (uiState.password.isBlank()) {
+            uiState = uiState.copy(passwordError = "Password cannot be empty")
+            hasError = true
+        }
+
+        if (hasError) return
+
         viewModelScope.launch {
-            uiState = uiState.copy(isLoading = true, errorMessage = null)
+            uiState = uiState.copy(
+                isLoading = true,
+                errorMessage = null
+            )
 
             try {
                 loginUseCase(uiState.username, uiState.password)
@@ -53,7 +82,7 @@ class LoginViewModel @Inject constructor(
             } catch (e: Exception) {
                 uiState = uiState.copy(
                     isLoading = false,
-                    errorMessage = "Invalid credentials or token expired"
+                    errorMessage = "Invalid credentials"
                 )
             }
         }
