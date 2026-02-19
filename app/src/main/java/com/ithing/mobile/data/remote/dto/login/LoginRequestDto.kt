@@ -1,4 +1,4 @@
-package com.ithing.mobile.data.remote.dto
+package com.ithing.mobile.data.remote.dto.login
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

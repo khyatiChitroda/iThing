@@ -2,8 +2,7 @@ package com.ithing.mobile.data
 
 import com.ithing.mobile.data.local.datastore.AuthDataStore
 import com.ithing.mobile.data.remote.api.AuthApiService
-import com.ithing.mobile.data.remote.dto.LoginRequestDto
-import com.ithing.mobile.data.remote.dto.LoginResponseDto
+import com.ithing.mobile.data.remote.dto.login.LoginResponseDto
 import com.ithing.mobile.data.repository.AuthRepositoryImpl
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest

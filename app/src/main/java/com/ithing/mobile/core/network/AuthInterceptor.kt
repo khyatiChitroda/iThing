@@ -1,5 +1,6 @@
 package com.ithing.mobile.core.network
 
+import android.util.Log
 import com.ithing.mobile.core.session.SessionManager
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -13,21 +14,16 @@ class AuthInterceptor @Inject constructor(
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
+
         val originalRequest = chain.request()
+        val token = runBlocking { sessionManager.getToken() }
 
-        val token = runBlocking {
-            sessionManager.getToken()
+        val requestBuilder = originalRequest.newBuilder()
+
+        if (!token.isNullOrBlank()) {
+            requestBuilder.addHeader("Authorization", token)
         }
 
-        // If no token → proceed normally
-        if (token.isNullOrBlank()) {
-            return chain.proceed(originalRequest)
-        }
-
-        val authenticatedRequest = originalRequest.newBuilder()
-            .addHeader("Authorization", "Bearer $token")
-            .build()
-
-        return chain.proceed(authenticatedRequest)
+        return chain.proceed(requestBuilder.build())
     }
 }

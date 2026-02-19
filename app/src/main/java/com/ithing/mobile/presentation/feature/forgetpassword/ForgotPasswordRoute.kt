@@ -2,9 +2,8 @@ package com.ithing.mobile.presentation.feature.forgetpassword
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.ithing.mobile.presentation.navigation.AppDestination
 
 @Composable
 fun ForgotPasswordRoute(
@@ -15,7 +14,6 @@ fun ForgotPasswordRoute(
 
     LaunchedEffect(uiState.successMessage) {
         if (uiState.successMessage != null) {
-            // After showing success, navigate back to login
             navController.popBackStack()
         }
     }

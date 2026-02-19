@@ -1,10 +1,14 @@
 package com.ithing.mobile.data.repository
 
+import android.util.Log
 import com.ithing.mobile.core.security.HashUtil
+import com.ithing.mobile.core.session.SessionManager
+import com.ithing.mobile.core.session.UserRole
 import com.ithing.mobile.data.local.datastore.AuthDataStore
 import com.ithing.mobile.data.remote.api.AuthApiService
-import com.ithing.mobile.data.remote.dto.ForgotPasswordRequestDto
-import com.ithing.mobile.data.remote.dto.LoginRequestDto
+import com.ithing.mobile.data.remote.dto.changepassword.ChangePasswordRequestDto
+import com.ithing.mobile.data.remote.dto.forgotpassword.ForgotPasswordRequestDto
+import com.ithing.mobile.data.remote.dto.login.LoginRequestDto
 import com.ithing.mobile.domain.repository.AuthRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,10 +16,9 @@ import javax.inject.Singleton
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val authApiService: AuthApiService,
-    private val authDataStore: AuthDataStore
+    private val authDataStore: AuthDataStore,
+    private val sessionManager: SessionManager
 ) : AuthRepository {
-//vikas@solegaonkar.com
-    //iThing@2025
     override suspend fun login(
         username: String,
         password: String
@@ -29,13 +32,21 @@ class AuthRepositoryImpl @Inject constructor(
         )
     )
 
-    val token = response.token
+        val user = response.data.user
 
-    // Persist token
-    authDataStore.saveAccessToken(token)
+        val role = when {
+            user.superadmin -> UserRole.SUPER_ADMIN
+            user.oemadmin -> UserRole.OEM_ADMIN
+            user.customeradmin -> UserRole.CUSTOMER_ADMIN
+            user.admin -> UserRole.ADMIN
+            else -> UserRole.USER
+        }
+        sessionManager.saveUserRole(role)
+        sessionManager.saveToken(response.data.token)
     }
 
     override suspend fun logout() {
+        sessionManager.clearSession()
         authDataStore.clear()
     }
 
@@ -48,4 +59,18 @@ class AuthRepositoryImpl @Inject constructor(
             throw RuntimeException(response.message)
         }
     }
+
+    override suspend fun changePassword(newPassword: String) {
+
+        val hashedPassword = HashUtil.sha1(newPassword)
+
+        val response = authApiService.changePassword(
+            ChangePasswordRequestDto(password = hashedPassword)
+        )
+
+        if (!response.data.success) {
+            throw RuntimeException(response.data.message)
+        }
+    }
+
 }
