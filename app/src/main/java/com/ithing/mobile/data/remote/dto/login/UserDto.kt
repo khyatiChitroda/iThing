@@ -1,8 +1,6 @@
-package com.ithing.mobile.data.remote.dto
+package com.ithing.mobile.data.remote.dto.login
 
-import kotlinx.serialization.Serializable
-
-@Serializable
+@kotlinx.serialization.Serializable
 data class UserDto(
     val id: String,
     val name: String,
@@ -10,10 +8,10 @@ data class UserDto(
     val phone: String,
     val organization: String,
     val context: String,
-    val admin: Boolean,
-    val superadmin: Boolean,
-    val oemadmin: Boolean,
-    val customeradmin: Boolean,
+    val admin: Boolean = false,
+    val superadmin: Boolean = false,
+    val oemadmin: Boolean = false,
+    val customeradmin: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long,
     val lastPasswordChange: Long,

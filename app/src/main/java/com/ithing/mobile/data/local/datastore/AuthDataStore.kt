@@ -31,11 +31,6 @@ class AuthDataStore @Inject constructor(
             preferences[Keys.ACCESS_TOKEN]
         }
 
-    suspend fun saveAccessToken(token: String) {
-        context.authDataStore.edit { preferences ->
-            preferences[Keys.ACCESS_TOKEN] = token
-        }
-    }
 
     suspend fun clear() {
         context.authDataStore.edit { preferences ->

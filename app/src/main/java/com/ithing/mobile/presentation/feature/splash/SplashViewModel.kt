@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ithing.mobile.core.session.SessionManager
 import com.ithing.mobile.data.local.datastore.AuthDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
@@ -13,7 +14,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SplashViewModel @Inject constructor(
-    private val authDataStore: AuthDataStore
+    private val authDataStore: AuthDataStore,
+    private val sessionManager: SessionManager
 ) : ViewModel() {
 
     var destination by mutableStateOf<SplashDestination?>(null)
@@ -25,13 +27,16 @@ class SplashViewModel @Inject constructor(
 
     private fun checkSession() {
         viewModelScope.launch {
-            val token = authDataStore.accessToken.first()
+            val token = sessionManager.getToken()
+            val role = sessionManager.getUserRole()
 
-            destination = if (!token.isNullOrBlank()) {
-                SplashDestination.Authenticated
+            destination = if (!token.isNullOrBlank() && role != null) {
+                SplashDestination.Authenticated(role)
             } else {
                 SplashDestination.Unauthenticated
             }
         }
-    }
+
+
+}
 }

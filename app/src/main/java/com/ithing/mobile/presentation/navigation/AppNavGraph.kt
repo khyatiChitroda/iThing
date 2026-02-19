@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import com.ithing.mobile.presentation.feature.login.LoginRoute
 import com.ithing.mobile.presentation.feature.login.LoginViewModel
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.ithing.mobile.presentation.feature.changepassword.ChangePasswordRoute
 import com.ithing.mobile.presentation.feature.dashboard.DashboardRoute
 import com.ithing.mobile.presentation.feature.dashboard.DashboardViewModel
 import com.ithing.mobile.presentation.feature.forgetpassword.ForgotPasswordRoute
@@ -47,5 +48,9 @@ fun AppNavGraph(
             DashboardRoute(viewModel = dashboardViewModel,
                 navController = navController)
         }
+        composable(AppDestination.ChangePassword.route) {
+            ChangePasswordRoute(navController = navController)
+        }
+
     }
 }

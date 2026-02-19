@@ -18,6 +18,8 @@ class SessionManager @Inject constructor(
 
     companion object {
         private val TOKEN_KEY = stringPreferencesKey("jwt_token")
+        private val ROLE_KEY = stringPreferencesKey("user_role")
+
     }
 
     suspend fun saveToken(token: String) {
@@ -27,9 +29,22 @@ class SessionManager @Inject constructor(
     }
 
     suspend fun getToken(): String? {
-//        return "invalid_token_for_testing"
         return dataStore.data
             .map { it[TOKEN_KEY] }
+            .firstOrNull()
+    }
+
+    suspend fun saveUserRole(role: UserRole) {
+        dataStore.edit { preferences ->
+            preferences[ROLE_KEY] = role.name
+        }
+    }
+
+    suspend fun getUserRole(): UserRole? {
+        return dataStore.data
+            .map { prefs ->
+                prefs[ROLE_KEY]?.let { UserRole.valueOf(it) }
+            }
             .firstOrNull()
     }
 

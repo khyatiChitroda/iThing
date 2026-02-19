@@ -1,5 +1,6 @@
 package com.ithing.mobile.presentation.feature.dashboard
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -20,6 +21,9 @@ fun DashboardRoute(
                     }
                 }
             }
+        },
+        onChangePasswordClick = {
+            navController.navigate(AppDestination.ChangePassword.route)
         }
     )
 }

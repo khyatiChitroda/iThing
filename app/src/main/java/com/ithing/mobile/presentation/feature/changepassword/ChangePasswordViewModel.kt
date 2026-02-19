@@ -1,27 +1,36 @@
-package com.ithing.mobile.presentation.feature.forgetpassword
+package com.ithing.mobile.presentation.feature.changepassword
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ithing.mobile.domain.usecase.ForgotPasswordUseCase
+import com.ithing.mobile.domain.usecase.ChangePasswordUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class ForgotPasswordViewModel @Inject constructor(
-    private val forgotPasswordUseCase: ForgotPasswordUseCase
+class ChangePasswordViewModel @Inject constructor(
+    private val changePasswordUseCase: ChangePasswordUseCase
 ) : ViewModel() {
 
-    var uiState by mutableStateOf(ForgotPasswordUiState())
+    var uiState by mutableStateOf(ChangePasswordUiState())
         private set
 
-    fun onEmailChange(email: String) {
+    fun onNewPasswordChange(value: String) {
         uiState = uiState.copy(
-            email = email,
-            emailError = null,
+            newPassword = value,
+            newPasswordError = null,
+            errorMessage = null,
+            successMessage = null
+        )
+    }
+
+    fun onConfirmPasswordChange(value: String) {
+        uiState = uiState.copy(
+            confirmPassword = value,
+            confirmPasswordError = null,
             errorMessage = null,
             successMessage = null
         )
@@ -30,14 +39,13 @@ class ForgotPasswordViewModel @Inject constructor(
     fun submit() {
         var hasError = false
 
-        if (uiState.email.isBlank()) {
-            uiState = uiState.copy(emailError = "Email cannot be empty")
+        if (uiState.newPassword.isBlank()) {
+            uiState = uiState.copy(newPasswordError = "Password cannot be empty")
             hasError = true
-        } else if (!android.util.Patterns.EMAIL_ADDRESS
-                .matcher(uiState.email)
-                .matches()
-        ) {
-            uiState = uiState.copy(emailError = "Invalid email format")
+        }
+
+        if (uiState.confirmPassword != uiState.newPassword) {
+            uiState = uiState.copy(confirmPasswordError = "Passwords do not match")
             hasError = true
         }
 
@@ -47,11 +55,11 @@ class ForgotPasswordViewModel @Inject constructor(
             uiState = uiState.copy(isLoading = true)
 
             try {
-                forgotPasswordUseCase(uiState.email)
+                changePasswordUseCase(uiState.newPassword)
 
                 uiState = uiState.copy(
                     isLoading = false,
-                    successMessage = "Reset link sent to your email"
+                    successMessage = "Password changed successfully"
                 )
             } catch (e: Exception) {
                 e.printStackTrace()

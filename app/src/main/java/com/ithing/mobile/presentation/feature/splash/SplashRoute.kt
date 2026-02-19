@@ -14,13 +14,17 @@ fun SplashRoute(
 
     LaunchedEffect(destination) {
         when (destination) {
-            SplashDestination.Authenticated -> {
-                navController.navigate(AppDestination.Home.route) {
+            is SplashDestination.Authenticated -> {
+                val role = destination.role
+
+                // For now all roles go to Dashboard
+                navController.navigate(AppDestination.Dashboard.route) {
                     popUpTo(AppDestination.Splash.route) {
                         inclusive = true
                     }
                 }
             }
+
 
             SplashDestination.Unauthenticated -> {
                 navController.navigate(AppDestination.Login.route) {
