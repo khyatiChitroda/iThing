@@ -1,6 +1,7 @@
 package com.ithing.mobile.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -8,6 +9,8 @@ import androidx.navigation.compose.composable
 import com.ithing.mobile.presentation.feature.login.LoginRoute
 import com.ithing.mobile.presentation.feature.login.LoginViewModel
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.ithing.mobile.core.session.AuthEvent
+import com.ithing.mobile.core.session.AuthEventBus
 import com.ithing.mobile.presentation.feature.changepassword.ChangePasswordRoute
 import com.ithing.mobile.presentation.feature.dashboard.DashboardRoute
 import com.ithing.mobile.presentation.feature.dashboard.DashboardViewModel
@@ -19,6 +22,20 @@ import com.ithing.mobile.presentation.feature.splash.SplashRoute
 fun AppNavGraph(
     navController: NavHostController
 ) {
+    LaunchedEffect(Unit) {
+        AuthEventBus.events.collect { event ->
+            when (event) {
+                AuthEvent.Logout -> {
+                    navController.navigate(AppDestination.Login.route) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = AppDestination.Splash.route
