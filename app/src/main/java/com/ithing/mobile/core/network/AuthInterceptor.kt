@@ -1,8 +1,5 @@
 package com.ithing.mobile.core.network
 
-import android.util.Log
-import com.ithing.mobile.core.session.AuthEvent
-import com.ithing.mobile.core.session.AuthEventBus
 import com.ithing.mobile.core.session.SessionManager
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -17,23 +14,15 @@ class AuthInterceptor @Inject constructor(
 
     override fun intercept(chain: Interceptor.Chain): Response {
 
+        val originalRequest = chain.request()
         val token = runBlocking { sessionManager.getToken() }
 
-        val request = chain.request().newBuilder().apply {
-            if (!token.isNullOrBlank()) {
-                addHeader("Authorization", token)
-            }
-        }.build()
+        val requestBuilder = originalRequest.newBuilder()
 
-        val response = chain.proceed(request)
-
-        if (response.code == 401) {
-            runBlocking {
-                sessionManager.clearSession()
-                AuthEventBus.emit(AuthEvent.Logout)
-            }
+        if (!token.isNullOrBlank()) {
+            requestBuilder.addHeader("Authorization", token)
         }
 
-        return response
+        return chain.proceed(requestBuilder.build())
     }
 }

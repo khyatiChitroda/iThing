@@ -1,6 +1,7 @@
 package com.ithing.mobile.presentation.feature.splash
 
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ithing.mobile.presentation.navigation.AppDestination
@@ -15,10 +16,10 @@ fun SplashRoute(
     LaunchedEffect(destination) {
         when (destination) {
             is SplashDestination.Authenticated -> {
-                val role = destination.role
+                destination.role
 
                 // For now all roles go to Dashboard
-                navController.navigate(AppDestination.Dashboard.route) {
+                navController.navigate(AppDestination.AppShell.route) {
                     popUpTo(AppDestination.Splash.route) {
                         inclusive = true
                     }

@@ -1,6 +1,5 @@
 package com.ithing.mobile.data.repository
 
-import android.util.Log
 import com.ithing.mobile.core.security.HashUtil
 import com.ithing.mobile.core.session.SessionManager
 import com.ithing.mobile.core.session.UserRole

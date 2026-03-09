@@ -1,4 +1,3 @@
 package com.ithing.mobile.domain.repository
 
-interface BaseRepository {
-}
+interface BaseRepository

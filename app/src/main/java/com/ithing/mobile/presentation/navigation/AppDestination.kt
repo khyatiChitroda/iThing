@@ -5,7 +5,8 @@ sealed class AppDestination(val route: String) {
 
     object Splash : AppDestination("splash")
     object Login : AppDestination("login")
-
+    object AppShell : AppDestination("app_shell")
+    object Reports : AppDestination("reports")
     object Dashboard : AppDestination("dashboard")
 
     object Home : AppDestination("home")
@@ -13,7 +14,4 @@ sealed class AppDestination(val route: String) {
     object ForgotPassword : AppDestination("forgot_password")
     object ChangePassword : AppDestination("change_password")
 
-    // Future examples:
-    // object Reports : AppDestination("reports")
-    // object Settings : AppDestination("settings")
 }

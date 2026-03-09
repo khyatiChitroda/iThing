@@ -1,6 +1,5 @@
 package com.ithing.mobile.domain.usecase
 
-import androidx.compose.runtime.Composable
 import com.ithing.mobile.domain.repository.AuthRepository
 import javax.inject.Inject
 
