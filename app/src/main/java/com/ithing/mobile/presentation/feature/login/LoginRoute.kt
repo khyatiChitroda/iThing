@@ -15,7 +15,7 @@ fun LoginRoute(
 
     LaunchedEffect(uiState.isLoginSuccessful) {
         if (uiState.isLoginSuccessful) {
-            navController.navigate(AppDestination.Dashboard.route) {
+            navController.navigate(AppDestination.AppShell.route) {
                 popUpTo(AppDestination.Login.route) {
                     inclusive = true
                 }

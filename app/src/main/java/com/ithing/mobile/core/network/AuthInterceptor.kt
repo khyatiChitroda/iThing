@@ -1,6 +1,5 @@
 package com.ithing.mobile.core.network
 
-import android.util.Log
 import com.ithing.mobile.core.session.SessionManager
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor

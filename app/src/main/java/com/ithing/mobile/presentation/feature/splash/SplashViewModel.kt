@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.ithing.mobile.core.session.SessionManager
 import com.ithing.mobile.data.local.datastore.AuthDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
