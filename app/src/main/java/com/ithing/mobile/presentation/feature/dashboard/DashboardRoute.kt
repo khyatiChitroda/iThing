@@ -10,19 +10,7 @@ fun DashboardRoute(
     viewModel: DashboardViewModel = hiltViewModel(),
     navController: NavController
 ) {
-
     DashboardScreen(
-        onLogoutClick = {
-            viewModel.logout {
-                navController.navigate(AppDestination.Login.route) {
-                    popUpTo(AppDestination.Dashboard.route) {
-                        inclusive = true
-                    }
-                }
-            }
-        },
-        onChangePasswordClick = {
-            navController.navigate(AppDestination.ChangePassword.route)
-        }
+        viewModel = viewModel
     )
 }
