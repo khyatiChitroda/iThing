@@ -1,6 +1,5 @@
 package com.ithing.mobile.presentation.feature.dashboard
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ithing.mobile.domain.model.Customer
@@ -38,10 +37,6 @@ class DashboardViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository,
     private val sessionManager: com.ithing.mobile.core.session.SessionManager
 ) : ViewModel() {
-    companion object {
-        private const val TAG = "DashboardViewModel"
-    }
-
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
@@ -56,12 +51,11 @@ class DashboardViewModel @Inject constructor(
 
     fun loadFilters() {
         viewModelScope.launch {
-            Log.d(TAG, "loadFilters start")
+            println("DashboardViewModel: loadFilters start")
 
             val token = sessionManager.getToken()
-            Log.d(
-                TAG,
-                "loadFilters tokenPresent=${!token.isNullOrBlank()} token=${token?.take(16)}..."
+            println(
+                "DashboardViewModel: loadFilters tokenPresent=${!token.isNullOrBlank()} token=${token?.take(16)}..."
             )
 
             if (token.isNullOrBlank()) {
@@ -71,7 +65,7 @@ class DashboardViewModel @Inject constructor(
                         errorMessage = "Session not ready. Please login again."
                     )
                 }
-                Log.e(TAG, "loadFilters aborted: session token missing")
+                println("DashboardViewModel: loadFilters aborted: session token missing")
                 return@launch
             }
 
@@ -91,9 +85,8 @@ class DashboardViewModel @Inject constructor(
             allOems = oemsResult.getOrDefault(emptyList())
             allCustomers = customersResult.getOrDefault(emptyList())
             allDevices = devicesResult.getOrDefault(emptyList())
-            Log.d(
-                TAG,
-                "loadFilters results industries=${allIndustries.size} oems=${allOems.size} customers=${allCustomers.size} devices=${allDevices.size} error=$errorMessage"
+            println(
+                "DashboardViewModel: loadFilters results industries=${allIndustries.size} oems=${allOems.size} customers=${allCustomers.size} devices=${allDevices.size} error=$errorMessage"
             )
 
             _uiState.update {
@@ -160,19 +153,19 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             val customerId = _uiState.value.selectedCustomer?.id
             val deviceId = _uiState.value.selectedDevice?.id
-            Log.d(
-                TAG,
-                "refreshDashboard customerId=$customerId deviceId=$deviceId"
+            println(
+                "DashboardViewModel: refreshDashboard customerId=$customerId deviceId=$deviceId"
             )
             if (customerId != null && deviceId != null) {
                 _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
                 dashboardRepository.getDashboardWidgets(customerId, deviceId)
                     .onSuccess { widgets ->
-                        Log.d(TAG, "refreshDashboard widgetsLoaded=${widgets.size}")
+                        println("DashboardViewModel: refreshDashboard widgetsLoaded=${widgets.size}")
                         _uiState.update { it.copy(widgets = widgets, isRefreshing = false) }
                     }
                     .onFailure { ex ->
-                        Log.e(TAG, "refreshDashboard failed", ex)
+                        println("DashboardViewModel: refreshDashboard failed ${ex.message}")
+                        ex.printStackTrace()
                         _uiState.update {
                             it.copy(
                                 isRefreshing = false,

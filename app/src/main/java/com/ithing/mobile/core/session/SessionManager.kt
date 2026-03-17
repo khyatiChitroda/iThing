@@ -1,6 +1,4 @@
 package com.ithing.mobile.core.session
-
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -17,7 +15,6 @@ class SessionManager @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) {
     companion object {
-        private const val TAG = "SessionManager"
         private val TOKEN_KEY = stringPreferencesKey("jwt_token")
         private val ROLE_KEY = stringPreferencesKey("user_role")
         private val USER_ID_KEY = stringPreferencesKey("user_id")
@@ -39,7 +36,7 @@ class SessionManager @Inject constructor(
     suspend fun saveToken(token: String) {
         val normalizedToken = token.trim()
         cachedToken = normalizedToken
-        Log.d(TAG, "saveToken token=${normalizedToken.take(16)}... length=${normalizedToken.length}")
+        println("SessionManager: saveToken token=${normalizedToken.take(16)}... length=${normalizedToken.length}")
         dataStore.edit { preferences ->
             preferences[TOKEN_KEY] = normalizedToken
         }
@@ -47,7 +44,7 @@ class SessionManager @Inject constructor(
 
     suspend fun getToken(): String? {
         cachedToken?.let {
-            Log.d(TAG, "getToken cache hit token=${it.take(16)}... length=${it.length}")
+            println("SessionManager: getToken cache hit token=${it.take(16)}... length=${it.length}")
             return it
         }
 
@@ -56,7 +53,7 @@ class SessionManager @Inject constructor(
             .firstOrNull()
             ?.also {
                 cachedToken = it
-                Log.d(TAG, "getToken datastore hit token=${it.take(16)}... length=${it.length}")
+                println("SessionManager: getToken datastore hit token=${it.take(16)}... length=${it.length}")
             }
     }
 
@@ -120,7 +117,7 @@ class SessionManager @Inject constructor(
     }
 
     suspend fun clearSession() {
-        Log.d(TAG, "clearSession")
+        println("SessionManager: clearSession")
         cachedToken = null
         cachedRole = null
         cachedUserId = null

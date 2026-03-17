@@ -1,6 +1,5 @@
 package com.ithing.mobile.data.repository
 
-import android.util.Log
 import com.ithing.mobile.core.security.HashUtil
 import com.ithing.mobile.core.session.SessionManager
 import com.ithing.mobile.core.session.UserRole
@@ -19,10 +18,6 @@ class AuthRepositoryImpl @Inject constructor(
     private val authDataStore: AuthDataStore,
     private val sessionManager: SessionManager
 ) : AuthRepository {
-    companion object {
-        private const val TAG = "AuthRepository"
-    }
-
     override suspend fun login(
         username: String,
         password: String
@@ -49,9 +44,8 @@ class AuthRepositoryImpl @Inject constructor(
         sessionManager.saveUserId(user.id)
         sessionManager.saveOemLogo(response.data.oemLogo)
         sessionManager.saveToken(response.data.token)
-        Log.d(
-            TAG,
-            "Login succeeded for $username; saved token=${response.data.token.take(16)}..."
+        println(
+            "AuthRepository: Login succeeded for $username; saved token=${response.data.token.take(16)}..."
         )
     }
 

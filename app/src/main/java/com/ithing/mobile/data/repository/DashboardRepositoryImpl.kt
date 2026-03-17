@@ -1,6 +1,5 @@
 package com.ithing.mobile.data.repository
 
-import android.util.Log
 import com.ithing.mobile.data.remote.api.DashboardApi
 import com.ithing.mobile.data.remote.dto.dashboard.CustomerDto
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetDto
@@ -19,10 +18,6 @@ import javax.inject.Inject
 class DashboardRepositoryImpl @Inject constructor(
     private val dashboardApi: DashboardApi,
 ) : DashboardRepository {
-    companion object {
-        private const val TAG = "DashboardRepository"
-    }
-
     private val listRequest = ListRequestDto(page = 1, pageSize = -1, sort = "asc")
 
     override suspend fun getIndustries(): Result<List<Industry>> = runCatching {
@@ -33,7 +28,8 @@ class DashboardRepositoryImpl @Inject constructor(
             Industry(id = name, name = name)
         }
     }.onFailure { error ->
-        Log.e(TAG, "getIndustries failed", error)
+        println("DashboardRepository: getIndustries failed ${error.message}")
+        error.printStackTrace()
     }
 
     override suspend fun getOems(): Result<List<Oem>> = runCatching {
@@ -42,21 +38,24 @@ class DashboardRepositoryImpl @Inject constructor(
         )
         response.data.list.map { it.toDomain() }
     }.onFailure { error ->
-        Log.e(TAG, "getOems failed", error)
+        println("DashboardRepository: getOems failed ${error.message}")
+        error.printStackTrace()
     }
 
     override suspend fun getCustomers(): Result<List<Customer>> = runCatching {
         val response = dashboardApi.getCustomers(listRequest)
         response.data.list.map { it.toDomain() }
     }.onFailure { error ->
-        Log.e(TAG, "getCustomers failed", error)
+        println("DashboardRepository: getCustomers failed ${error.message}")
+        error.printStackTrace()
     }
 
     override suspend fun getDevices(): Result<List<Device>> = runCatching {
         val response = dashboardApi.getDevices(listRequest)  // use deviceApi instead of dashboardApi
         response.data.list.map { it.toDomain() }
     }.onFailure { error ->
-        Log.e(TAG, "getDevices failed", error)
+        println("DashboardRepository: getDevices failed ${error.message}")
+        error.printStackTrace()
     }
 
     override suspend fun getDashboardWidgets(
@@ -78,7 +77,8 @@ class DashboardRepositoryImpl @Inject constructor(
 
         response.data.list.map { it.toDomain() }
     }.onFailure { error ->
-        Log.e(TAG, "getDashboardWidgets failed", error)
+        println("DashboardRepository: getDashboardWidgets failed ${error.message}")
+        error.printStackTrace()
     }
 
 
