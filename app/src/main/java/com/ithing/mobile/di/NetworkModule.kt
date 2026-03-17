@@ -2,14 +2,17 @@ package com.ithing.mobile.di
 
 import com.ithing.mobile.core.network.AuthInterceptor
 import com.ithing.mobile.data.remote.api.AuthApiService
+import com.ithing.mobile.data.remote.api.DashboardApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import jakarta.inject.Named
 import jakarta.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
@@ -22,8 +25,11 @@ object NetworkModule {
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor
     ): OkHttpClient {
+        val logging = HttpLoggingInterceptor()
+        logging.level = HttpLoggingInterceptor.Level.BODY
         return OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .addInterceptor(logging)
             .build()
     }
 
@@ -34,6 +40,7 @@ object NetworkModule {
     ): Retrofit {
         val json = Json {
             ignoreUnknownKeys = true
+            encodeDefaults = true
         }
 
         return Retrofit.Builder()
@@ -51,5 +58,13 @@ object NetworkModule {
         retrofit: Retrofit
     ): AuthApiService {
         return retrofit.create(AuthApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDashboardApiService(
+        retrofit: Retrofit
+    ): DashboardApi {
+        return retrofit.create(DashboardApi::class.java)
     }
 }

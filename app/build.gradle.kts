@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.compose.foundation.layout)
     implementation(libs.androidx.navigation.runtime.ktx)
+    implementation(libs.androidx.runtime)
     ksp(libs.hilt.android.compiler)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.kotlinx.serialization.json)

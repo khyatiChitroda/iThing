@@ -11,18 +11,33 @@ import javax.inject.Singleton
 class AuthInterceptor @Inject constructor(
     private val sessionManager: SessionManager
 ) : Interceptor {
-
     override fun intercept(chain: Interceptor.Chain): Response {
-
         val originalRequest = chain.request()
         val token = runBlocking { sessionManager.getToken() }
+            ?.removePrefix("Bearer ")
+            ?.trim()
 
         val requestBuilder = originalRequest.newBuilder()
 
         if (!token.isNullOrBlank()) {
-            requestBuilder.addHeader("Authorization", token)
+            requestBuilder.header("Authorization", token)
+            println(
+                "AuthInterceptor: Sending ${originalRequest.method} ${originalRequest.url.encodedPath} with token=${token.take(16)}..."
+            )
+        } else {
+            println(
+                "AuthInterceptor: Sending ${originalRequest.method} ${originalRequest.url.encodedPath} without auth token"
+            )
         }
 
-        return chain.proceed(requestBuilder.build())
+        val response = chain.proceed(requestBuilder.build())
+
+        if (response.code == 401) {
+            println(
+                "AuthInterceptor: 401 from ${originalRequest.url.encodedPath}; authHeaderPresent=${!token.isNullOrBlank()}"
+            )
+        }
+
+        return response
     }
 }

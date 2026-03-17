@@ -41,7 +41,12 @@ class AuthRepositoryImpl @Inject constructor(
             else -> UserRole.USER
         }
         sessionManager.saveUserRole(role)
+        sessionManager.saveUserId(user.id)
+        sessionManager.saveOemLogo(response.data.oemLogo)
         sessionManager.saveToken(response.data.token)
+        println(
+            "AuthRepository: Login succeeded for $username; saved token=${response.data.token.take(16)}..."
+        )
     }
 
     override suspend fun logout() {

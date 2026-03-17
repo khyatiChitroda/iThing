@@ -5,7 +5,11 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.*
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -19,20 +23,10 @@ class SessionManagerTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var dataStore: DataStore<Preferences>
     private lateinit var sessionManager: SessionManager
-    private lateinit var testScope: TestScope
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-
-        testScope = TestScope(testDispatcher)
-
-        dataStore = PreferenceDataStoreFactory.create(
-            scope = testScope,
-            produceFile = { File.createTempFile("test", ".preferences_pb") }
-        )
-
-        sessionManager = SessionManager(dataStore)
     }
 
     @After
@@ -41,7 +35,13 @@ class SessionManagerTest {
     }
 
     @Test
-    fun `saveToken and getToken should return same value`() = runTest {
+    fun `saveToken and getToken should return same value`() = runTest(testDispatcher) {
+        dataStore = PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { File.createTempFile("test", ".preferences_pb") }
+        )
+        sessionManager = SessionManager(dataStore)
+
         val token = "test_token"
 
         sessionManager.saveToken(token)
@@ -53,7 +53,13 @@ class SessionManagerTest {
     }
 
     @Test
-    fun `clearSession should remove token`() = runTest {
+    fun `clearSession should remove token`() = runTest(testDispatcher) {
+        dataStore = PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { File.createTempFile("test", ".preferences_pb") }
+        )
+        sessionManager = SessionManager(dataStore)
+
         val token = "test_token"
 
         sessionManager.saveToken(token)
