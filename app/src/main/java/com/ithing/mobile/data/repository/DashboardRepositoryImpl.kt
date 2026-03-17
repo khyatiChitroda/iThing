@@ -1,12 +1,13 @@
 package com.ithing.mobile.data.repository
 
+import android.util.Log
 import com.ithing.mobile.data.remote.api.DashboardApi
-import com.ithing.mobile.data.remote.api.DeviceApi
 import com.ithing.mobile.data.remote.dto.dashboard.CustomerDto
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetDto
 import com.ithing.mobile.data.remote.dto.dashboard.DeviceDto
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetsRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
+import com.ithing.mobile.data.remote.dto.dashboard.PaginationDto
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.DashboardWidget
 import com.ithing.mobile.domain.model.Device
@@ -17,8 +18,10 @@ import javax.inject.Inject
 
 class DashboardRepositoryImpl @Inject constructor(
     private val dashboardApi: DashboardApi,
-    private val deviceApi: DeviceApi
 ) : DashboardRepository {
+    companion object {
+        private const val TAG = "DashboardRepository"
+    }
 
     private val listRequest = ListRequestDto(page = 1, pageSize = -1, sort = "asc")
 
@@ -29,6 +32,8 @@ class DashboardRepositoryImpl @Inject constructor(
         response.data.list.mapIndexed { index, name ->
             Industry(id = name, name = name)
         }
+    }.onFailure { error ->
+        Log.e(TAG, "getIndustries failed", error)
     }
 
     override suspend fun getOems(): Result<List<Oem>> = runCatching {
@@ -36,24 +41,46 @@ class DashboardRepositoryImpl @Inject constructor(
             listRequest.copy(sortField = "name")
         )
         response.data.list.map { it.toDomain() }
+    }.onFailure { error ->
+        Log.e(TAG, "getOems failed", error)
     }
 
     override suspend fun getCustomers(): Result<List<Customer>> = runCatching {
         val response = dashboardApi.getCustomers(listRequest)
         response.data.list.map { it.toDomain() }
+    }.onFailure { error ->
+        Log.e(TAG, "getCustomers failed", error)
     }
 
     override suspend fun getDevices(): Result<List<Device>> = runCatching {
-        val response = deviceApi.getDevices(listRequest)  // use deviceApi instead of dashboardApi
+        val response = dashboardApi.getDevices(listRequest)  // use deviceApi instead of dashboardApi
         response.data.list.map { it.toDomain() }
+    }.onFailure { error ->
+        Log.e(TAG, "getDevices failed", error)
     }
 
-    override suspend fun getDashboardWidgets(customerId: String): Result<List<DashboardWidget>> = runCatching {
+    override suspend fun getDashboardWidgets(
+        customerId: String,
+        deviceId: String
+    ): Result<List<DashboardWidget>> = runCatching {
+
         val response = dashboardApi.getDashboardWidgets(
-            DashboardWidgetsRequestDto(customer = customerId)
+            DashboardWidgetsRequestDto(
+                customer = customerId,
+                pagination = PaginationDto(
+                    page = 1,
+                    pageSize = -1,
+                    sort = "asc",
+                    filter = mapOf("device" to deviceId)
+                )
+            )
         )
+
         response.data.list.map { it.toDomain() }
+    }.onFailure { error ->
+        Log.e(TAG, "getDashboardWidgets failed", error)
     }
+
 
     private fun com.ithing.mobile.data.remote.dto.dashboard.OemDto.toDomain() = Oem(
         id = id,

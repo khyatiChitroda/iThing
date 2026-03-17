@@ -11,5 +11,8 @@ interface DashboardRepository {
     suspend fun getOems(): Result<List<Oem>>
     suspend fun getCustomers(): Result<List<Customer>>
     suspend fun getDevices(): Result<List<Device>>
-    suspend fun getDashboardWidgets(customerId: String): Result<List<DashboardWidget>>
+    suspend fun getDashboardWidgets(
+        customerId: String,
+        deviceId: String
+    ): Result<List<DashboardWidget>>
 }

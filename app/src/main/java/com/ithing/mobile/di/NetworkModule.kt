@@ -3,7 +3,6 @@ package com.ithing.mobile.di
 import com.ithing.mobile.core.network.AuthInterceptor
 import com.ithing.mobile.data.remote.api.AuthApiService
 import com.ithing.mobile.data.remote.api.DashboardApi
-import com.ithing.mobile.data.remote.api.DeviceApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -13,6 +12,7 @@ import jakarta.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
@@ -25,8 +25,11 @@ object NetworkModule {
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor
     ): OkHttpClient {
+        val logging = HttpLoggingInterceptor()
+        logging.level = HttpLoggingInterceptor.Level.BODY
         return OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .addInterceptor(logging)
             .build()
     }
 
@@ -37,6 +40,7 @@ object NetworkModule {
     ): Retrofit {
         val json = Json {
             ignoreUnknownKeys = true
+            encodeDefaults = true
         }
 
         return Retrofit.Builder()
@@ -63,35 +67,4 @@ object NetworkModule {
     ): DashboardApi {
         return retrofit.create(DashboardApi::class.java)
     }
-
-    private const val DEVICE_BASE_URL = "https://n4lg3qtnlgsp2h5zfba4uujlfi0zuycm.lambda-url.ap-south-1.on.aws/"
-
-    // Add new provider (after provideRetrofit)
-    @Provides
-    @Singleton
-    @Named("DeviceRetrofit")
-    fun provideDeviceRetrofit(
-        okHttpClient: OkHttpClient
-    ): Retrofit {
-        val json = Json {
-            ignoreUnknownKeys = true
-        }
-        return Retrofit.Builder()
-            .baseUrl(DEVICE_BASE_URL)
-            .client(okHttpClient)
-            .addConverterFactory(
-                json.asConverterFactory("application/json".toMediaType())
-            )
-            .build()
-    }
-    // Add new provider for device API
-    @Provides
-    @Singleton
-    fun provideDeviceApiService(
-        @Named("DeviceRetrofit") retrofit: Retrofit
-    ): DeviceApi {
-        return retrofit.create(DeviceApi::class.java)
-    }
-
-
 }

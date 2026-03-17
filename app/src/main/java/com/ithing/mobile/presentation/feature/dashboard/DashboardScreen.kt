@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -37,46 +35,66 @@ fun DashboardScreen(
                 }
             }
             else -> {
-                FilterSection(
-                    industries = uiState.industries,
-                    oems = uiState.oems,
-                    customers = uiState.customers,
-                    devices = uiState.devices,
-                    selectedIndustry = uiState.selectedIndustry,
-                    selectedOem = uiState.selectedOem,
-                    selectedCustomer = uiState.selectedCustomer,
-                    selectedDevice = uiState.selectedDevice,
-                    onIndustrySelected = viewModel::onIndustrySelected,
-                    onOemSelected = viewModel::onOemSelected,
-                    onCustomerSelected = viewModel::onCustomerSelected,
-                    onDeviceSelected = viewModel::onDeviceSelected,
-                    onRefresh = viewModel::refreshDashboard
-                )
-
-                uiState.errorMessage?.let { msg ->
-                    Text(
-                        text = msg,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-
-                if (uiState.isRefreshing) {
-                    CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-                }
-
-                uiState.widgets.forEach { widget ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Text(
-                            text = widget.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(16.dp)
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    item {
+                        FilterSection(
+                            industries = uiState.industries,
+                            oems = uiState.oems,
+                            customers = uiState.customers,
+                            devices = uiState.devices,
+                            selectedIndustry = uiState.selectedIndustry,
+                            selectedOem = uiState.selectedOem,
+                            selectedCustomer = uiState.selectedCustomer,
+                            selectedDevice = uiState.selectedDevice,
+                            onIndustrySelected = viewModel::onIndustrySelected,
+                            onOemSelected = viewModel::onOemSelected,
+                            onCustomerSelected = viewModel::onCustomerSelected,
+                            onDeviceSelected = viewModel::onDeviceSelected,
+                            onRefresh = viewModel::refreshDashboard
                         )
+                    }
+
+                    uiState.errorMessage?.let { msg ->
+                        item {
+                            Text(
+                                text = msg,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+
+                    if (uiState.isRefreshing) {
+                        item {
+                            CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+                        }
+                    }
+
+                    if (!uiState.isRefreshing && uiState.widgets.isEmpty() && uiState.selectedCustomer != null) {
+                        item {
+                            Text(
+                                text = "No dashboard widgets available for the selected filters.",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
+                    items(uiState.widgets.size) { index ->
+                        val widget = uiState.widgets[index]
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Text(
+                                text = widget.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
                     }
                 }
             }

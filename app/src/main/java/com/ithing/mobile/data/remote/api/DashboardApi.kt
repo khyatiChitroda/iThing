@@ -3,6 +3,7 @@ package com.ithing.mobile.data.remote.api
 import com.ithing.mobile.data.remote.dto.dashboard.CustomerListResponseDto
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetsRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetsResponseDto
+import com.ithing.mobile.data.remote.dto.dashboard.DeviceListResponseDto
 import com.ithing.mobile.data.remote.dto.dashboard.IndustryListResponseDto
 import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.OemListResponseDto
@@ -22,4 +23,7 @@ interface DashboardApi {
 
     @POST("dashboard-widgets-list")
     suspend fun getDashboardWidgets(@Body request: DashboardWidgetsRequestDto): DashboardWidgetsResponseDto
+
+    @POST("device-list")
+    suspend fun getDevices(@Body request: ListRequestDto): DeviceListResponseDto
 }

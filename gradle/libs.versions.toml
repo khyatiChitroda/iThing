@@ -25,6 +25,7 @@ datastore = "1.1.1"
 kotlinx-coroutines-test = "1.7.3"
 mockito = "5.5.0"
 mockito-kotlin = "5.1.0"
+runtimeVersion = "1.10.4"
 
 
 
@@ -75,6 +76,7 @@ compose-material-icons-extended = { group = "androidx.compose.material", name = 
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines-test" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito-kotlin" }
+androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtimeVersion" }
 
 
 

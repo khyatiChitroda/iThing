@@ -60,6 +60,7 @@ fun FilterSection(
                 options = industries,
                 selected = selectedIndustry,
                 displayText = { it?.name ?: "All" },
+                enabled = industries.isNotEmpty(),
                 onSelected = onIndustrySelected
             )
             FilterDropdown(
@@ -67,6 +68,7 @@ fun FilterSection(
                 options = oems,
                 selected = selectedOem,
                 displayText = { it?.name ?: "All" },
+                enabled = oems.isNotEmpty(),
                 onSelected = onOemSelected
             )
             FilterDropdown(
@@ -74,6 +76,7 @@ fun FilterSection(
                 options = customers,
                 selected = selectedCustomer,
                 displayText = { it?.name ?: "All" },
+                enabled = customers.isNotEmpty(),
                 onSelected = onCustomerSelected
             )
             FilterDropdown(
@@ -81,10 +84,15 @@ fun FilterSection(
                 options = devices,
                 selected = selectedDevice,
                 displayText = { it?.name ?: "All" },
+                enabled = devices.isNotEmpty(),
                 onSelected = onDeviceSelected
             )
 
-            Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onRefresh,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = selectedCustomer != null && selectedDevice != null
+            ) {
                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                 Text("Refresh")
             }
@@ -98,12 +106,17 @@ private fun <T> FilterDropdown(
     options: List<T>,
     selected: T?,
     displayText: (T?) -> String,
+    enabled: Boolean,
     onSelected: (T?) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = it }
+        onExpandedChange = {
+            if (enabled) {
+                expanded = it
+            }
+        }
     ) {
         OutlinedTextField(
             value = displayText(selected),
@@ -111,6 +124,7 @@ private fun <T> FilterDropdown(
             readOnly = true,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor()

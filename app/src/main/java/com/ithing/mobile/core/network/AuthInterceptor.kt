@@ -1,6 +1,7 @@
 package com.ithing.mobile.core.network
 
 import com.ithing.mobile.core.session.SessionManager
+import android.util.Log
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -11,18 +12,40 @@ import javax.inject.Singleton
 class AuthInterceptor @Inject constructor(
     private val sessionManager: SessionManager
 ) : Interceptor {
+    companion object {
+        private const val TAG = "AuthInterceptor"
+    }
 
     override fun intercept(chain: Interceptor.Chain): Response {
-
         val originalRequest = chain.request()
         val token = runBlocking { sessionManager.getToken() }
+            ?.removePrefix("Bearer ")
+            ?.trim()
 
         val requestBuilder = originalRequest.newBuilder()
 
         if (!token.isNullOrBlank()) {
-            requestBuilder.addHeader("Authorization", token)
+            requestBuilder.header("Authorization", token)
+            Log.d(
+                TAG,
+                "Sending ${originalRequest.method} ${originalRequest.url.encodedPath} with token=${token.take(16)}..."
+            )
+        } else {
+            Log.w(
+                TAG,
+                "Sending ${originalRequest.method} ${originalRequest.url.encodedPath} without auth token"
+            )
         }
 
-        return chain.proceed(requestBuilder.build())
+        val response = chain.proceed(requestBuilder.build())
+
+        if (response.code == 401) {
+            Log.e(
+                TAG,
+                "401 from ${originalRequest.url.encodedPath}; authHeaderPresent=${!token.isNullOrBlank()}"
+            )
+        }
+
+        return response
     }
 }
