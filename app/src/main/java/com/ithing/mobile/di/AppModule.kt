@@ -3,8 +3,10 @@ package com.ithing.mobile.di
 import android.content.Context
 import com.ithing.mobile.data.repository.AuthRepositoryImpl
 import com.ithing.mobile.data.repository.DashboardRepositoryImpl
+import com.ithing.mobile.data.repository.ReportsRepositoryImpl
 import com.ithing.mobile.domain.repository.AuthRepository
 import com.ithing.mobile.domain.repository.DashboardRepository
+import com.ithing.mobile.domain.repository.ReportsRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,4 +34,10 @@ object AppModule {
     fun provideDashboardRepository(
         dashboardRepositoryImpl: DashboardRepositoryImpl
     ): DashboardRepository = dashboardRepositoryImpl
+
+    @Provides
+    @Singleton
+    fun provideReportsRepository(
+        reportsRepositoryImpl: ReportsRepositoryImpl
+    ): ReportsRepository = reportsRepositoryImpl
 }

@@ -28,8 +28,13 @@ class SplashViewModel @Inject constructor(
         viewModelScope.launch {
             val token = sessionManager.getToken()
             val role = sessionManager.getUserRole()
+            val isExpired = sessionManager.isSessionExpired()
 
-            destination = if (!token.isNullOrBlank() && role != null) {
+            if (isExpired) {
+                sessionManager.clearSession()
+            }
+
+            destination = if (!token.isNullOrBlank() && role != null && !isExpired) {
                 SplashDestination.Authenticated(role)
             } else {
                 SplashDestination.Unauthenticated

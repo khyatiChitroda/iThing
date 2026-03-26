@@ -2,9 +2,12 @@ package com.ithing.mobile.core.session
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,6 +19,7 @@ class SessionManager @Inject constructor(
 ) {
     companion object {
         private val TOKEN_KEY = stringPreferencesKey("jwt_token")
+        private val TOKEN_EXPIRY_KEY = longPreferencesKey("jwt_token_expiry")
         private val ROLE_KEY = stringPreferencesKey("user_role")
         private val USER_ID_KEY = stringPreferencesKey("user_id")
         private val OEM_LOGO_KEY = stringPreferencesKey("oem_logo")
@@ -28,10 +32,16 @@ class SessionManager @Inject constructor(
     private var cachedRole: UserRole? = null
 
     @Volatile
+    private var cachedTokenExpiry: Long? = null
+
+    @Volatile
     private var cachedUserId: String? = null
 
     @Volatile
     private var cachedOemLogo: String? = null
+
+    private val _sessionExpiredEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val sessionExpiredEvents: SharedFlow<Unit> = _sessionExpiredEvents
 
     suspend fun saveToken(token: String) {
         val normalizedToken = token.trim()
@@ -44,6 +54,10 @@ class SessionManager @Inject constructor(
 
     suspend fun getToken(): String? {
         cachedToken?.let {
+            if (isSessionExpired()) {
+                expireSession()
+                return null
+            }
             println("SessionManager: getToken cache hit token=${it.take(16)}... length=${it.length}")
             return it
         }
@@ -53,8 +67,34 @@ class SessionManager @Inject constructor(
             .firstOrNull()
             ?.also {
                 cachedToken = it
+                if (isSessionExpired()) {
+                    expireSession()
+                    return null
+                }
                 println("SessionManager: getToken datastore hit token=${it.take(16)}... length=${it.length}")
             }
+    }
+
+    suspend fun saveTokenExpiry(expiryMillis: Long) {
+        cachedTokenExpiry = expiryMillis
+        println("SessionManager: saveTokenExpiry expiryMillis=$expiryMillis")
+        dataStore.edit { preferences ->
+            preferences[TOKEN_EXPIRY_KEY] = expiryMillis
+        }
+    }
+
+    suspend fun getTokenExpiry(): Long? {
+        cachedTokenExpiry?.let { return it }
+
+        return dataStore.data
+            .map { it[TOKEN_EXPIRY_KEY] }
+            .firstOrNull()
+            ?.also { cachedTokenExpiry = it }
+    }
+
+    suspend fun isSessionExpired(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        val expiryMillis = getTokenExpiry() ?: return false
+        return nowMillis >= expiryMillis
     }
 
     suspend fun saveUserRole(role: UserRole) {
@@ -119,14 +159,22 @@ class SessionManager @Inject constructor(
     suspend fun clearSession() {
         println("SessionManager: clearSession")
         cachedToken = null
+        cachedTokenExpiry = null
         cachedRole = null
         cachedUserId = null
         cachedOemLogo = null
         dataStore.edit {
             it.remove(TOKEN_KEY)
+            it.remove(TOKEN_EXPIRY_KEY)
             it.remove(ROLE_KEY)
             it.remove(USER_ID_KEY)
             it.remove(OEM_LOGO_KEY)
         }
+    }
+
+    suspend fun expireSession() {
+        println("SessionManager: expireSession")
+        clearSession()
+        _sessionExpiredEvents.emit(Unit)
     }
 }
