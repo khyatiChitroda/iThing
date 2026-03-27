@@ -1,5 +1,6 @@
 package com.ithing.mobile.data.repository
 
+import android.util.Base64
 import com.ithing.mobile.core.security.HashUtil
 import com.ithing.mobile.core.session.SessionManager
 import com.ithing.mobile.core.session.UserRole
@@ -9,6 +10,7 @@ import com.ithing.mobile.data.remote.dto.changepassword.ChangePasswordRequestDto
 import com.ithing.mobile.data.remote.dto.forgotpassword.ForgotPasswordRequestDto
 import com.ithing.mobile.data.remote.dto.login.LoginRequestDto
 import com.ithing.mobile.domain.repository.AuthRepository
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -43,6 +45,9 @@ class AuthRepositoryImpl @Inject constructor(
         sessionManager.saveUserRole(role)
         sessionManager.saveUserId(user.id)
         sessionManager.saveOemLogo(response.data.oemLogo)
+        extractJwtExpiryMillis(response.data.token)?.let { expiryMillis ->
+            sessionManager.saveTokenExpiry(expiryMillis)
+        }
         sessionManager.saveToken(response.data.token)
         println(
             "AuthRepository: Login succeeded for $username; saved token=${response.data.token.take(16)}..."
@@ -75,6 +80,18 @@ class AuthRepositoryImpl @Inject constructor(
         if (!response.data.success) {
             throw RuntimeException(response.data.message)
         }
+    }
+
+    private fun extractJwtExpiryMillis(token: String): Long? {
+        return runCatching {
+            val parts = token.split(".")
+            require(parts.size >= 2)
+            val payload = String(
+                Base64.decode(parts[1], Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+            )
+            val expSeconds = JSONObject(payload).getLong("exp")
+            expSeconds * 1000
+        }.getOrNull()
     }
 
 }

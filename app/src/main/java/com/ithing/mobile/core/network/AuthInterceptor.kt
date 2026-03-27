@@ -32,10 +32,13 @@ class AuthInterceptor @Inject constructor(
 
         val response = chain.proceed(requestBuilder.build())
 
-        if (response.code == 401) {
+        if (response.code == 401 && !token.isNullOrBlank()) {
             println(
                 "AuthInterceptor: 401 from ${originalRequest.url.encodedPath}; authHeaderPresent=${!token.isNullOrBlank()}"
             )
+            runBlocking {
+                sessionManager.expireSession()
+            }
         }
 
         return response

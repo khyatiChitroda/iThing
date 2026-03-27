@@ -3,11 +3,11 @@ package com.ithing.mobile.di
 import com.ithing.mobile.core.network.AuthInterceptor
 import com.ithing.mobile.data.remote.api.AuthApiService
 import com.ithing.mobile.data.remote.api.DashboardApi
+import com.ithing.mobile.data.remote.api.ReportsApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import jakarta.inject.Named
 import jakarta.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -66,5 +66,13 @@ object NetworkModule {
         retrofit: Retrofit
     ): DashboardApi {
         return retrofit.create(DashboardApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideReportsApiService(
+        retrofit: Retrofit
+    ): ReportsApi {
+        return retrofit.create(ReportsApi::class.java)
     }
 }

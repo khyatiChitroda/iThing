@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -20,6 +21,7 @@ import com.ithing.mobile.presentation.components.BottomNavBar
 import com.ithing.mobile.presentation.feature.dashboard.DashboardRoute
 import com.ithing.mobile.presentation.feature.reports.ReportsRoute
 import com.ithing.mobile.presentation.navigation.AppDestination
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -32,6 +34,25 @@ fun AppShell(
     val innerNavController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(sessionManager) {
+        sessionManager.sessionExpiredEvents.collect {
+            navController.navigate(AppDestination.Login.route) {
+                popUpTo(0)
+            }
+        }
+    }
+
+    LaunchedEffect(sessionManager) {
+        val expiryMillis = sessionManager.getTokenExpiry() ?: return@LaunchedEffect
+        val delayMillis = expiryMillis - System.currentTimeMillis()
+        if (delayMillis <= 0) {
+            sessionManager.expireSession()
+            return@LaunchedEffect
+        }
+        delay(delayMillis)
+        sessionManager.expireSession()
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
