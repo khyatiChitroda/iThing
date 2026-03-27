@@ -2,8 +2,11 @@ package com.ithing.mobile.presentation.feature.reports
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.DeviceOwnerDetails
+import com.ithing.mobile.domain.model.Industry
+import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.model.ReportSchedule
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.repository.ReportsRepository
@@ -16,7 +19,13 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ReportsUiState(
+    val industries: List<Industry> = emptyList(),
+    val oems: List<Oem> = emptyList(),
+    val customers: List<Customer> = emptyList(),
     val devices: List<Device> = emptyList(),
+    val selectedIndustry: Industry? = null,
+    val selectedOem: Oem? = null,
+    val selectedCustomer: Customer? = null,
     val selectedDevice: Device? = null,
     val schedules: List<ReportSchedule> = emptyList(),
     val deviceOwnerDetails: DeviceOwnerDetails? = null,
@@ -34,6 +43,11 @@ class ReportsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ReportsUiState())
     val uiState: StateFlow<ReportsUiState> = _uiState.asStateFlow()
 
+    private var allIndustries: List<Industry> = emptyList()
+    private var allOems: List<Oem> = emptyList()
+    private var allCustomers: List<Customer> = emptyList()
+    private var allDevices: List<Device> = emptyList()
+
     init {
         loadReports()
     }
@@ -42,48 +56,87 @@ class ReportsViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
+            val industriesResult = dashboardRepository.getIndustries()
+            val oemsResult = dashboardRepository.getOems()
+            val customersResult = dashboardRepository.getCustomers()
             val devicesResult = dashboardRepository.getDevices()
-            val devices = devicesResult.getOrDefault(emptyList())
-            val selectedDevice = _uiState.value.selectedDevice ?: devices.firstOrNull()
+
+            allIndustries = industriesResult.getOrDefault(emptyList())
+            allOems = oemsResult.getOrDefault(emptyList())
+            allCustomers = customersResult.getOrDefault(emptyList())
+            allDevices = devicesResult.getOrDefault(emptyList())
+
+            val errorMessage = listOf(
+                industriesResult.exceptionOrNull(),
+                oemsResult.exceptionOrNull(),
+                customersResult.exceptionOrNull(),
+                devicesResult.exceptionOrNull()
+            ).firstOrNull()?.message
 
             _uiState.update {
                 it.copy(
-                    devices = devices,
-                    selectedDevice = selectedDevice
+                    industries = allIndustries,
+                    errorMessage = errorMessage
                 )
             }
-
-            if (selectedDevice == null) {
-                _uiState.update {
-                    it.copy(
-                        schedules = emptyList(),
-                        deviceOwnerDetails = null,
-                        isLoading = false,
-                        errorMessage = devicesResult.exceptionOrNull()?.message
-                    )
-                }
-                return@launch
-            }
-
-            loadSelectedDevice(selectedDevice.id, false)
+            applyFilters()
+            _uiState.update { it.copy(isLoading = false) }
         }
+    }
+
+    fun onIndustrySelected(industry: Industry?) {
+        _uiState.update {
+            it.copy(
+                selectedIndustry = industry,
+                selectedOem = null,
+                selectedCustomer = null,
+                selectedDevice = null,
+                schedules = emptyList(),
+                deviceOwnerDetails = null,
+                errorMessage = null
+            )
+        }
+        applyFilters()
+    }
+
+    fun onOemSelected(oem: Oem?) {
+        _uiState.update {
+            it.copy(
+                selectedOem = oem,
+                selectedCustomer = null,
+                selectedDevice = null,
+                schedules = emptyList(),
+                deviceOwnerDetails = null,
+                errorMessage = null
+            )
+        }
+        applyFilters()
+    }
+
+    fun onCustomerSelected(customer: Customer?) {
+        _uiState.update {
+            it.copy(
+                selectedCustomer = customer,
+                selectedDevice = null,
+                schedules = emptyList(),
+                deviceOwnerDetails = null,
+                errorMessage = null
+            )
+        }
+        applyFilters()
     }
 
     fun onDeviceSelected(device: Device?) {
         _uiState.update {
             it.copy(
                 selectedDevice = device,
+                schedules = emptyList(),
+                deviceOwnerDetails = null,
                 errorMessage = null
             )
         }
 
         if (device == null) {
-            _uiState.update {
-                it.copy(
-                    schedules = emptyList(),
-                    deviceOwnerDetails = null
-                )
-            }
             return
         }
 
@@ -92,7 +145,7 @@ class ReportsViewModel @Inject constructor(
         }
     }
 
-    fun refresh() {
+    fun refreshReports() {
         val deviceId = _uiState.value.selectedDevice?.id ?: return
         viewModelScope.launch {
             loadSelectedDevice(deviceId, true)
@@ -121,6 +174,36 @@ class ReportsViewModel @Inject constructor(
                     schedulesResult.exceptionOrNull(),
                     ownerDetailsResult.exceptionOrNull()
                 ).firstOrNull()?.message
+            )
+        }
+    }
+
+    private fun applyFilters() {
+        val state = _uiState.value
+
+        val filteredOems = state.selectedIndustry?.let { industry ->
+            allOems.filter { it.industry == industry.name }
+        } ?: allOems
+
+        val filteredCustomers = allCustomers.filter { customer ->
+            val matchesIndustry = state.selectedIndustry?.name?.let { customer.industry == it } ?: true
+            val matchesOem = state.selectedOem?.id?.let { customer.oemId == it } ?: true
+            matchesIndustry && matchesOem
+        }
+
+        val filteredDevices = allDevices.filter { device ->
+            val matchesIndustry = state.selectedIndustry?.name?.let { device.industry == it } ?: true
+            val matchesOem = state.selectedOem?.id?.let { device.oemId == it } ?: true
+            val matchesCustomer = state.selectedCustomer?.id?.let { device.customerId == it } ?: true
+            matchesIndustry && matchesOem && matchesCustomer
+        }
+
+        _uiState.update {
+            it.copy(
+                industries = allIndustries,
+                oems = filteredOems,
+                customers = filteredCustomers,
+                devices = filteredDevices
             )
         }
     }
