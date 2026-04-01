@@ -1,9 +1,9 @@
 package com.ithing.mobile.domain.repository
 
 import com.ithing.mobile.domain.model.DeviceOwnerDetails
-import com.ithing.mobile.domain.model.ReportSchedule
+import com.ithing.mobile.domain.model.ReportSchedulePage
 
 interface ReportsRepository {
-    suspend fun getReportSchedules(deviceId: String?): Result<List<ReportSchedule>>
+    suspend fun getReportSchedules(deviceId: String?, page: Int, pageSize: Int): Result<ReportSchedulePage>
     suspend fun getDeviceOwnerDetails(deviceId: String): Result<DeviceOwnerDetails>
 }

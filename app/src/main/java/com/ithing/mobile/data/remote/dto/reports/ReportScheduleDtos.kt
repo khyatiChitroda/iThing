@@ -1,6 +1,7 @@
 package com.ithing.mobile.data.remote.dto.reports
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 
 @Serializable
 data class ReportScheduleListResponseDto(
@@ -21,6 +22,7 @@ data class ReportScheduleDto(
     val id: String,
     val deviceId: String,
     val customerId: String,
+    @SerialName("oem")
     val oemId: String,
     val excelConfig: ExcelConfigDto? = null,
     val delivery: DeliveryDto,
