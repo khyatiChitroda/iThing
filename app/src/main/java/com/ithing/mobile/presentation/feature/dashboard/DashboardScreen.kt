@@ -9,45 +9,31 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.ithing.mobile.domain.model.DashboardWidget
 import com.ithing.mobile.presentation.theme.AccentBlue
 import com.ithing.mobile.presentation.theme.LightGrayBg
 import com.ithing.mobile.presentation.theme.MutedText
-import com.ithing.mobile.presentation.theme.NavyBlue
-import com.ithing.mobile.presentation.theme.White
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,6 +50,7 @@ fun DashboardScreen(
         onOemSelected = viewModel::onOemSelected,
         onCustomerSelected = viewModel::onCustomerSelected,
         onDeviceSelected = viewModel::onDeviceSelected,
+        onGroupSelected = viewModel::onGroupSelected,
         onRefresh = viewModel::refreshDashboard
     )
 }
@@ -75,6 +62,7 @@ private fun DashboardContent(
     onOemSelected: (com.ithing.mobile.domain.model.Oem?) -> Unit,
     onCustomerSelected: (com.ithing.mobile.domain.model.Customer?) -> Unit,
     onDeviceSelected: (com.ithing.mobile.domain.model.Device?) -> Unit,
+    onGroupSelected: (String) -> Unit,
     onRefresh: () -> Unit
 ) {
     Box(
@@ -99,7 +87,7 @@ private fun DashboardContent(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(28.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F7FC)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
@@ -116,7 +104,7 @@ private fun DashboardContent(
                                 color = Color(0xFF49586E)
                             )
 
-                            Divider(color = Color(0xFFD8E1EC))
+                            HorizontalDivider(color = Color(0xFFD8E1EC))
 
                             FilterSection(
                                 industries = uiState.industries,
@@ -134,20 +122,23 @@ private fun DashboardContent(
                             )
 
                             DashboardControlsRow(
+                                groups = uiState.availableGroups,
+                                selectedGroup = uiState.selectedGroup,
                                 selectedCustomer = uiState.selectedCustomer != null,
                                 selectedDevice = uiState.selectedDevice != null,
                                 isRefreshing = uiState.isRefreshing,
+                                onGroupSelected = onGroupSelected,
                                 onRefresh = onRefresh
                             )
 
-                            DashboardStatusRow(widgetCount = uiState.widgets.size)
+                            DashboardStatusRow(lastUpdatedAt = uiState.lastUpdatedAt)
                         }
                     }
                 }
 
-                uiState.errorMessage?.let { msg ->
+                uiState.errorMessage?.let { message ->
                     item {
-                        ErrorBanner(message = msg)
+                        ErrorBanner(message = message)
                     }
                 }
 
@@ -157,13 +148,22 @@ private fun DashboardContent(
                     }
                 }
 
-                if (!uiState.isRefreshing && uiState.widgets.isEmpty()) {
+                val filteredWidgets = uiState.widgets.filter {
+                    uiState.selectedGroup == "All" || it.dashboardName == uiState.selectedGroup
+                }
+
+                if (!uiState.isRefreshing && filteredWidgets.isEmpty()) {
                     item {
-                        DashboardEmptyState(hasSelection = uiState.selectedCustomer != null && uiState.selectedDevice != null)
+                        DashboardEmptyState(
+                            hasSelection = uiState.selectedCustomer != null && uiState.selectedDevice != null
+                        )
                     }
-                } else if (uiState.widgets.isNotEmpty()) {
+                } else if (filteredWidgets.isNotEmpty()) {
                     item {
-                        DashboardWidgetGrid(widgets = uiState.widgets)
+                        DashboardWidgetGrid(
+                            widgets = uiState.widgets,
+                            selectedGroup = uiState.selectedGroup
+                        )
                     }
                 }
             }
@@ -173,9 +173,12 @@ private fun DashboardContent(
 
 @Composable
 private fun DashboardControlsRow(
+    groups: List<String>,
+    selectedGroup: String,
     selectedCustomer: Boolean,
     selectedDevice: Boolean,
     isRefreshing: Boolean,
+    onGroupSelected: (String) -> Unit,
     onRefresh: () -> Unit
 ) {
     Row(
@@ -183,37 +186,17 @@ private fun DashboardControlsRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(20.dp),
-            color = White,
-            tonalElevation = 1.dp,
-            shadowElevation = 2.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "All",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF6C7B90)
-                )
-                Text(
-                    text = "⌄",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF6C7B90)
-                )
-            }
-        }
+        DashboardGroupSelector(
+            groups = groups,
+            selectedGroup = selectedGroup,
+            onGroupSelected = onGroupSelected,
+            modifier = Modifier.weight(1f)
+        )
 
         Button(
             onClick = onRefresh,
             enabled = selectedCustomer && selectedDevice && !isRefreshing,
-            shape = RoundedCornerShape(18.dp)
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
         ) {
             androidx.compose.material3.Icon(
                 imageVector = Icons.Default.Refresh,
@@ -226,17 +209,14 @@ private fun DashboardControlsRow(
 }
 
 @Composable
-private fun DashboardStatusRow(widgetCount: Int) {
-    val timestamp = remember {
-        SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault()).format(Date())
+private fun DashboardStatusRow(lastUpdatedAt: Long?) {
+    val timestamp = lastUpdatedAt?.let {
+        SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault()).format(Date(it))
     }
 
     Text(
-        text = if (widgetCount > 0) {
-            "Dashboard Last Updated at $timestamp"
-        } else {
-            "Select your filters and refresh to load dashboard widgets."
-        },
+        text = timestamp?.let { "Dashboard Last Updated at $it" }
+            ?: "Select your filters and refresh to load dashboard widgets.",
         style = MaterialTheme.typography.bodyLarge,
         color = AccentBlue,
         fontWeight = FontWeight.Medium
@@ -244,120 +224,10 @@ private fun DashboardStatusRow(widgetCount: Int) {
 }
 
 @Composable
-private fun DashboardWidgetGrid(widgets: List<DashboardWidget>) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(((widgets.size + 1) / 2 * 220).dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        userScrollEnabled = false
-    ) {
-        items(widgets, key = { it.id }) { widget ->
-            DashboardWidgetCard(widget = widget)
-        }
-    }
-}
-
-@Composable
-private fun DashboardWidgetCard(widget: DashboardWidget) {
-    val isMetricCard = remember(widget.type) {
-        widget.type.contains("number", ignoreCase = true) ||
-            widget.type.contains("metric", ignoreCase = true) ||
-            widget.type.contains("value", ignoreCase = true)
-    }
-
-    if (isMetricCard) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp),
-            shape = RoundedCornerShape(28.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF3D5A88), Color(0xFF1E2F67))
-                        )
-                    )
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = widget.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = White,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "--",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = White,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-        }
-    } else {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = widget.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color(0xFF24386C),
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .size(132.dp),
-                    shape = CircleShape,
-                    color = Color(0xFFF2F4F8)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = widget.type.uppercase(Locale.getDefault()).take(2),
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = Color(0xFF29408F),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Text(
-                    text = "Widget data preview",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MutedText,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun DashboardEmptyState(hasSelection: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F7FC)),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {

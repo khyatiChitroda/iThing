@@ -28,6 +28,10 @@ data class ReportsUiState(
     val selectedCustomer: Customer? = null,
     val selectedDevice: Device? = null,
     val schedules: List<ReportSchedule> = emptyList(),
+    val currentPage: Int = 1,
+    val pageSize: Int = 10,
+    val totalCount: Int = 0,
+    val totalPages: Int = 0,
     val deviceOwnerDetails: DeviceOwnerDetails? = null,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
@@ -92,6 +96,9 @@ class ReportsViewModel @Inject constructor(
                 selectedCustomer = null,
                 selectedDevice = null,
                 schedules = emptyList(),
+                currentPage = 1,
+                totalCount = 0,
+                totalPages = 0,
                 deviceOwnerDetails = null,
                 errorMessage = null
             )
@@ -106,6 +113,9 @@ class ReportsViewModel @Inject constructor(
                 selectedCustomer = null,
                 selectedDevice = null,
                 schedules = emptyList(),
+                currentPage = 1,
+                totalCount = 0,
+                totalPages = 0,
                 deviceOwnerDetails = null,
                 errorMessage = null
             )
@@ -119,6 +129,9 @@ class ReportsViewModel @Inject constructor(
                 selectedCustomer = customer,
                 selectedDevice = null,
                 schedules = emptyList(),
+                currentPage = 1,
+                totalCount = 0,
+                totalPages = 0,
                 deviceOwnerDetails = null,
                 errorMessage = null
             )
@@ -131,6 +144,9 @@ class ReportsViewModel @Inject constructor(
             it.copy(
                 selectedDevice = device,
                 schedules = emptyList(),
+                currentPage = 1,
+                totalCount = 0,
+                totalPages = 0,
                 deviceOwnerDetails = null,
                 errorMessage = null
             )
@@ -141,18 +157,28 @@ class ReportsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            loadSelectedDevice(device.id, true)
+            loadSelectedDevice(device.id, page = 1, refreshing = true)
         }
     }
 
     fun refreshReports() {
         val deviceId = _uiState.value.selectedDevice?.id ?: return
         viewModelScope.launch {
-            loadSelectedDevice(deviceId, true)
+            loadSelectedDevice(deviceId, page = _uiState.value.currentPage, refreshing = true)
         }
     }
 
-    private suspend fun loadSelectedDevice(deviceId: String, refreshing: Boolean) {
+    fun goToPage(page: Int) {
+        val state = _uiState.value
+        val deviceId = state.selectedDevice?.id ?: return
+        if (page < 1 || page > state.totalPages || page == state.currentPage) return
+
+        viewModelScope.launch {
+            loadSelectedDevice(deviceId, page = page, refreshing = true)
+        }
+    }
+
+    private suspend fun loadSelectedDevice(deviceId: String, page: Int, refreshing: Boolean) {
         _uiState.update {
             it.copy(
                 isLoading = !refreshing,
@@ -161,19 +187,24 @@ class ReportsViewModel @Inject constructor(
             )
         }
 
-        val schedulesResult = reportsRepository.getReportSchedules(deviceId)
-        val ownerDetailsResult = reportsRepository.getDeviceOwnerDetails(deviceId)
+        val schedulesResult = reportsRepository.getReportSchedules(
+            deviceId = deviceId,
+            page = page,
+            pageSize = _uiState.value.pageSize
+        )
 
         _uiState.update {
+            val schedulesPage = schedulesResult.getOrNull()
             it.copy(
-                schedules = schedulesResult.getOrDefault(emptyList()),
-                deviceOwnerDetails = ownerDetailsResult.getOrNull(),
+                schedules = schedulesPage?.schedules.orEmpty(),
+                currentPage = schedulesPage?.currentPage ?: it.currentPage,
+                pageSize = schedulesPage?.pageSize ?: it.pageSize,
+                totalCount = schedulesPage?.totalCount ?: 0,
+                totalPages = schedulesPage?.totalPages ?: 0,
+                deviceOwnerDetails = null,
                 isLoading = false,
                 isRefreshing = false,
-                errorMessage = listOf(
-                    schedulesResult.exceptionOrNull(),
-                    ownerDetailsResult.exceptionOrNull()
-                ).firstOrNull()?.message
+                errorMessage = schedulesResult.exceptionOrNull()?.message
             )
         }
     }
