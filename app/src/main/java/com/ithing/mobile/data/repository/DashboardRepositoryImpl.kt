@@ -9,10 +9,17 @@ import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.PaginationDto
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.DashboardWidget
+import com.ithing.mobile.domain.model.DashboardWidgetSource
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.repository.DashboardRepository
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 
 class DashboardRepositoryImpl @Inject constructor(
@@ -108,7 +115,28 @@ class DashboardRepositoryImpl @Inject constructor(
         id = id,
         title = title,
         type = type,
+        subType = subType,
         deviceId = device,
-        dashboardName = dashboardName
+        dashboardName = dashboardName,
+        unit = unit,
+        index = index,
+        sources = sources.orEmpty().mapNotNull { it.toDomainSource() }
     )
+
+    private fun JsonObject.toDomainSource(): DashboardWidgetSource? {
+        val field = get("field")?.toFieldName() ?: return null
+        val minValue = get("minValue")?.jsonPrimitive?.doubleOrNull
+        val maxValue = get("maxValue")?.jsonPrimitive?.doubleOrNull
+        return DashboardWidgetSource(
+            field = field,
+            minValue = minValue,
+            maxValue = maxValue 
+        )
+    }
+
+    private fun JsonElement.toFieldName(): String? =
+        when (this) {
+            is JsonArray -> firstOrNull()?.jsonPrimitive?.contentOrNull
+            else -> jsonPrimitive.contentOrNull
+        }
 }

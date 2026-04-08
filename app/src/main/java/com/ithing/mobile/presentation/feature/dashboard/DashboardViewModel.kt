@@ -26,6 +26,9 @@ data class DashboardUiState(
     val selectedCustomer: Customer? = null,
     val selectedDevice: Device? = null,
     val widgets: List<com.ithing.mobile.domain.model.DashboardWidget> = emptyList(),
+    val availableGroups: List<String> = listOf("All"),
+    val selectedGroup: String = "All",
+    val lastUpdatedAt: Long? = null,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null
@@ -108,6 +111,9 @@ class DashboardViewModel @Inject constructor(
                 selectedCustomer = null,
                 selectedDevice = null,
                 widgets = emptyList(),
+                availableGroups = listOf("All"),
+                selectedGroup = "All",
+                lastUpdatedAt = null,
                 errorMessage = null
             )
         }
@@ -121,6 +127,9 @@ class DashboardViewModel @Inject constructor(
                 selectedCustomer = null,
                 selectedDevice = null,
                 widgets = emptyList(),
+                availableGroups = listOf("All"),
+                selectedGroup = "All",
+                lastUpdatedAt = null,
                 errorMessage = null
             )
         }
@@ -133,6 +142,9 @@ class DashboardViewModel @Inject constructor(
                 selectedCustomer = customer,
                 selectedDevice = null,
                 widgets = emptyList(),
+                availableGroups = listOf("All"),
+                selectedGroup = "All",
+                lastUpdatedAt = null,
                 errorMessage = null
             )
         }
@@ -144,9 +156,16 @@ class DashboardViewModel @Inject constructor(
             it.copy(
                 selectedDevice = device,
                 widgets = emptyList(),
+                availableGroups = listOf("All"),
+                selectedGroup = "All",
+                lastUpdatedAt = null,
                 errorMessage = null
             )
         }
+    }
+
+    fun onGroupSelected(group: String) {
+        _uiState.update { it.copy(selectedGroup = group) }
     }
 
     fun refreshDashboard() {
@@ -161,7 +180,21 @@ class DashboardViewModel @Inject constructor(
                 dashboardRepository.getDashboardWidgets(customerId, deviceId)
                     .onSuccess { widgets ->
                         println("DashboardViewModel: refreshDashboard widgetsLoaded=${widgets.size}")
-                        _uiState.update { it.copy(widgets = widgets, isRefreshing = false) }
+                        val groups = listOf("All") + widgets.mapNotNull { it.dashboardName }
+                            .distinct()
+                            .sorted()
+                        val selectedGroup = _uiState.value.selectedGroup
+                            .takeIf { it in groups }
+                            ?: "All"
+                        _uiState.update {
+                            it.copy(
+                                widgets = widgets,
+                                availableGroups = groups,
+                                selectedGroup = selectedGroup,
+                                lastUpdatedAt = System.currentTimeMillis(),
+                                isRefreshing = false
+                            )
+                        }
                     }
                     .onFailure { ex ->
                         println("DashboardViewModel: refreshDashboard failed ${ex.message}")
@@ -174,7 +207,15 @@ class DashboardViewModel @Inject constructor(
                         }
                     }
             } else {
-                _uiState.update { it.copy(widgets = emptyList(), errorMessage = "Select a customer to load widgets") }
+                _uiState.update {
+                    it.copy(
+                        widgets = emptyList(),
+                        availableGroups = listOf("All"),
+                        selectedGroup = "All",
+                        lastUpdatedAt = null,
+                        errorMessage = "Select a customer to load widgets"
+                    )
+                }
             }
         }
     }

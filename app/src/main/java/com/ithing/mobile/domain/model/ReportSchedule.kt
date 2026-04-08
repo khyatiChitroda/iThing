@@ -1,5 +1,13 @@
 package com.ithing.mobile.domain.model
 
+data class ReportSchedulePage(
+    val totalCount: Int,
+    val totalPages: Int,
+    val schedules: List<ReportSchedule>,
+    val currentPage: Int,
+    val pageSize: Int
+)
+
 data class ReportSchedule(
     val id: String,
     val deviceId: String,

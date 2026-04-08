@@ -2,10 +2,12 @@ package com.ithing.mobile.data.repository
 
 import com.ithing.mobile.data.remote.api.ReportsApi
 import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
+import com.ithing.mobile.data.remote.dto.reports.DeviceMappingRequestDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceOwnerDetailsRequestDto
 import com.ithing.mobile.data.remote.dto.reports.ReportScheduleDto
 import com.ithing.mobile.domain.model.DeviceOwnerDetails
 import com.ithing.mobile.domain.model.ReportSchedule
+import com.ithing.mobile.domain.model.ReportSchedulePage
 import com.ithing.mobile.domain.repository.ReportsRepository
 import javax.inject.Inject
 
@@ -13,11 +15,15 @@ class ReportsRepositoryImpl @Inject constructor(
     private val reportsApi: ReportsApi
 ) : ReportsRepository {
 
-    override suspend fun getReportSchedules(deviceId: String?): Result<List<ReportSchedule>> = runCatching {
+    override suspend fun getReportSchedules(
+        deviceId: String?,
+        page: Int,
+        pageSize: Int
+    ): Result<ReportSchedulePage> = runCatching {
         val response = reportsApi.getReportSchedules(
             ListRequestDto(
-                page = 1,
-                pageSize = -1,
+                page = page,
+                pageSize = pageSize,
                 sort = "asc",
                 filter = buildMap {
                     if (!deviceId.isNullOrBlank()) {
@@ -26,7 +32,13 @@ class ReportsRepositoryImpl @Inject constructor(
                 }
             )
         )
-        response.data.list.map { it.toDomain() }
+        ReportSchedulePage(
+            totalCount = response.data.totalCount,
+            totalPages = response.data.totalPages,
+            schedules = response.data.list.map { it.toDomain() },
+            currentPage = response.data.currentPage,
+            pageSize = response.data.pageSize
+        )
     }
 
     override suspend fun getDeviceOwnerDetails(deviceId: String): Result<DeviceOwnerDetails> = runCatching {
@@ -44,6 +56,18 @@ class ReportsRepositoryImpl @Inject constructor(
             oemId = payload.oem.id,
             oemName = payload.oem.name
         )
+    }
+
+    override suspend fun getDeviceMappingFields(deviceId: String): Result<List<String>> = runCatching {
+        val response = reportsApi.getDeviceMapping(DeviceMappingRequestDto(id = deviceId))
+        val payload = requireNotNull(response.data.data) {
+            response.data.message.ifBlank { "Device mapping not found" }
+        }
+
+        payload.mapping
+            .map { it.registerName.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
     }
 
     private fun ReportScheduleDto.toDomain() = ReportSchedule(
