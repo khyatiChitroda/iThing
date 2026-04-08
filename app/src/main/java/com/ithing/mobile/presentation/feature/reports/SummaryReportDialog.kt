@@ -313,7 +313,7 @@ fun SummaryReportDialog(
 }
 
 @Composable
-private fun SummaryLabeledField(
+fun SummaryLabeledField(
     label: String,
     content: @Composable () -> Unit
 ) {
@@ -328,7 +328,7 @@ private fun SummaryLabeledField(
 }
 
 @Composable
-private fun SummaryDivider() {
+fun SummaryDivider() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
