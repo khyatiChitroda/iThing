@@ -2,6 +2,7 @@ package com.ithing.mobile.data.repository
 
 import com.ithing.mobile.data.remote.api.ReportsApi
 import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
+import com.ithing.mobile.data.remote.dto.reports.DeviceMappingRequestDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceOwnerDetailsRequestDto
 import com.ithing.mobile.data.remote.dto.reports.ReportScheduleDto
 import com.ithing.mobile.domain.model.DeviceOwnerDetails
@@ -55,6 +56,18 @@ class ReportsRepositoryImpl @Inject constructor(
             oemId = payload.oem.id,
             oemName = payload.oem.name
         )
+    }
+
+    override suspend fun getDeviceMappingFields(deviceId: String): Result<List<String>> = runCatching {
+        val response = reportsApi.getDeviceMapping(DeviceMappingRequestDto(id = deviceId))
+        val payload = requireNotNull(response.data.data) {
+            response.data.message.ifBlank { "Device mapping not found" }
+        }
+
+        payload.mapping
+            .map { it.registerName.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
     }
 
     private fun ReportScheduleDto.toDomain() = ReportSchedule(

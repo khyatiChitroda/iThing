@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -73,11 +74,19 @@ import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.White
 
 private data class ReportTypeCardModel(
+    val kind: ReportTypeCardKind,
     val title: String,
     val description: String,
     val illustrationLabel: String,
     val accentColor: Color
 )
+
+private enum class ReportTypeCardKind {
+    SUMMARY,
+    ANALYTIC,
+    SCHEDULE,
+    EXCEPTION
+}
 
 @Composable
 fun ReportsRoute(
@@ -92,6 +101,42 @@ fun ReportsRoute(
         onOemSelected = viewModel::onOemSelected,
         onCustomerSelected = viewModel::onCustomerSelected,
         onDeviceSelected = viewModel::onDeviceSelected,
+        onSummaryReportClick = viewModel::onSummaryReportClick,
+        onDismissSummaryDialog = viewModel::dismissSummaryDialog,
+        onDismissSummaryMessage = viewModel::dismissSummaryMessage,
+        onSummaryEmailChanged = viewModel::onSummaryEmailChanged,
+        onSummarySubjectChanged = viewModel::onSummarySubjectChanged,
+        onSummaryBodyChanged = viewModel::onSummaryBodyChanged,
+        onSummaryTimeSpanPresetSelected = viewModel::onSummaryTimeSpanPresetSelected,
+        onSummaryCustomDateRangeSelected = viewModel::onSummaryCustomDateRangeSelected,
+        onSummarySearchChanged = viewModel::onSummarySearchQueryChanged,
+        onSummaryFieldToggled = viewModel::onSummaryFieldToggled,
+        onSummarySelectAllToggled = viewModel::onSummarySelectAllToggled,
+        onSummarySaveClick = viewModel::onSummarySaveClick,
+        onScheduleReportClick = viewModel::onScheduleReportClick,
+        onDismissScheduleDialog = viewModel::dismissScheduleDialog,
+        onDismissScheduleMessage = viewModel::dismissScheduleMessage,
+        onScheduleEmailChanged = viewModel::onScheduleEmailChanged,
+        onScheduleSubjectChanged = viewModel::onScheduleSubjectChanged,
+        onScheduleBodyChanged = viewModel::onScheduleBodyChanged,
+        onScheduleFrequencyChanged = viewModel::onScheduleFrequencyChanged,
+        onScheduleSearchChanged = viewModel::onScheduleSearchQueryChanged,
+        onScheduleFieldToggled = viewModel::onScheduleFieldToggled,
+        onScheduleSelectAllToggled = viewModel::onScheduleSelectAllToggled,
+        onScheduleSaveClick = viewModel::onScheduleSaveClick,
+        onAnalyticReportClick = viewModel::onAnalyticReportClick,
+        onDismissAnalyticsDialog = viewModel::dismissAnalyticsDialog,
+        onDismissAnalyticsMessage = viewModel::dismissAnalyticsMessage,
+        onAnalyticsTimeSpanPresetSelected = viewModel::onAnalyticsTimeSpanPresetSelected,
+        onAnalyticsCustomDateRangeSelected = viewModel::onAnalyticsCustomDateRangeSelected,
+        onAnalyticsRowTitleChanged = viewModel::onAnalyticsRowTitleChanged,
+        onAnalyticsRowChartTypeChanged = viewModel::onAnalyticsRowChartTypeChanged,
+        onAnalyticsRowFieldChanged = viewModel::onAnalyticsRowFieldChanged,
+        onAnalyticsRowFrequencyChanged = viewModel::onAnalyticsRowFrequencyChanged,
+        onAddAnalyticsRow = viewModel::addAnalyticsRow,
+        onRemoveAnalyticsRow = viewModel::removeAnalyticsRow,
+        onAnalyticsSaveViewClick = viewModel::onAnalyticsSaveViewClick,
+        onAnalyticsGeneratePdfClick = viewModel::onAnalyticsGeneratePdfClick,
         onRefresh = viewModel::refreshReports,
         onPageChange = viewModel::goToPage
     )
@@ -104,6 +149,42 @@ private fun ReportsScreen(
     onOemSelected: (Oem?) -> Unit,
     onCustomerSelected: (Customer?) -> Unit,
     onDeviceSelected: (Device?) -> Unit,
+    onSummaryReportClick: () -> Unit,
+    onDismissSummaryDialog: () -> Unit,
+    onDismissSummaryMessage: () -> Unit,
+    onSummaryEmailChanged: (String) -> Unit,
+    onSummarySubjectChanged: (String) -> Unit,
+    onSummaryBodyChanged: (String) -> Unit,
+    onSummaryTimeSpanPresetSelected: (AnalyticsDatePreset) -> Unit,
+    onSummaryCustomDateRangeSelected: (Long, Long) -> Unit,
+    onSummarySearchChanged: (String) -> Unit,
+    onSummaryFieldToggled: (String) -> Unit,
+    onSummarySelectAllToggled: () -> Unit,
+    onSummarySaveClick: () -> Unit,
+    onScheduleReportClick: () -> Unit,
+    onDismissScheduleDialog: () -> Unit,
+    onDismissScheduleMessage: () -> Unit,
+    onScheduleEmailChanged: (String) -> Unit,
+    onScheduleSubjectChanged: (String) -> Unit,
+    onScheduleBodyChanged: (String) -> Unit,
+    onScheduleFrequencyChanged: (ScheduleDeliveryFrequency?) -> Unit,
+    onScheduleSearchChanged: (String) -> Unit,
+    onScheduleFieldToggled: (String) -> Unit,
+    onScheduleSelectAllToggled: () -> Unit,
+    onScheduleSaveClick: () -> Unit,
+    onAnalyticReportClick: () -> Unit,
+    onDismissAnalyticsDialog: () -> Unit,
+    onDismissAnalyticsMessage: () -> Unit,
+    onAnalyticsTimeSpanPresetSelected: (AnalyticsDatePreset) -> Unit,
+    onAnalyticsCustomDateRangeSelected: (Long, Long) -> Unit,
+    onAnalyticsRowTitleChanged: (String, String) -> Unit,
+    onAnalyticsRowChartTypeChanged: (String, AnalyticsChartType?) -> Unit,
+    onAnalyticsRowFieldChanged: (String, String?) -> Unit,
+    onAnalyticsRowFrequencyChanged: (String, AnalyticsFrequency?) -> Unit,
+    onAddAnalyticsRow: () -> Unit,
+    onRemoveAnalyticsRow: (String) -> Unit,
+    onAnalyticsSaveViewClick: () -> Unit,
+    onAnalyticsGeneratePdfClick: () -> Unit,
     onRefresh: () -> Unit,
     onPageChange: (Int) -> Unit
 ) {
@@ -112,24 +193,28 @@ private fun ReportsScreen(
     val reportCards = remember {
         listOf(
             ReportTypeCardModel(
+                kind = ReportTypeCardKind.SUMMARY,
                 title = "Summary Report",
                 description = "Summarized machine metrics enabling informed management decisions.",
                 illustrationLabel = "SR",
                 accentColor = Color(0xFFFFB020)
             ),
             ReportTypeCardModel(
+                kind = ReportTypeCardKind.ANALYTIC,
                 title = "Analytic Report",
                 description = "Visualize performance trends over time using intuitive charts.",
                 illustrationLabel = "AR",
                 accentColor = Color(0xFF4C7DFF)
             ),
             ReportTypeCardModel(
+                kind = ReportTypeCardKind.SCHEDULE,
                 title = "Schedule Report",
                 description = "Enable periodic reporting to streamline data monitoring.",
                 illustrationLabel = "SC",
                 accentColor = Color(0xFF22C55E)
             ),
             ReportTypeCardModel(
+                kind = ReportTypeCardKind.EXCEPTION,
                 title = "Exception Report",
                 description = "Track irregular events to support diagnostic and preventive actions.",
                 illustrationLabel = "ER",
@@ -159,7 +244,12 @@ private fun ReportsScreen(
             }
 
             item {
-                ReportsTypeSection(reportCards = reportCards)
+                ReportsTypeSection(
+                    reportCards = reportCards,
+                    onSummaryReportClick = onSummaryReportClick,
+                    onScheduleReportClick = onScheduleReportClick,
+                    onAnalyticReportClick = onAnalyticReportClick
+                )
             }
 
             item {
@@ -184,6 +274,95 @@ private fun ReportsScreen(
             ReportFieldsDialog(
                 fields = fields,
                 onDismiss = { selectedFields = null }
+            )
+        }
+
+        if (uiState.isAnalyticsDialogVisible) {
+            AnalyticsReportDialog(
+                uiState = uiState,
+                onDismiss = onDismissAnalyticsDialog,
+                onTimeSpanPresetSelected = onAnalyticsTimeSpanPresetSelected,
+                onCustomDateRangeSelected = onAnalyticsCustomDateRangeSelected,
+                onRowTitleChanged = onAnalyticsRowTitleChanged,
+                onRowChartTypeChanged = onAnalyticsRowChartTypeChanged,
+                onRowFieldChanged = onAnalyticsRowFieldChanged,
+                onRowFrequencyChanged = onAnalyticsRowFrequencyChanged,
+                onAddMore = onAddAnalyticsRow,
+                onRemoveRow = onRemoveAnalyticsRow,
+                onSaveViewClick = onAnalyticsSaveViewClick,
+                onGeneratePdfClick = onAnalyticsGeneratePdfClick
+            )
+        }
+
+        if (uiState.isSummaryDialogVisible) {
+            SummaryReportDialog(
+                uiState = uiState,
+                filteredFields = viewModelSummaryFields(uiState),
+                onDismiss = onDismissSummaryDialog,
+                onEmailChanged = onSummaryEmailChanged,
+                onSubjectChanged = onSummarySubjectChanged,
+                onBodyChanged = onSummaryBodyChanged,
+                onTimeSpanPresetSelected = onSummaryTimeSpanPresetSelected,
+                onCustomDateRangeSelected = onSummaryCustomDateRangeSelected,
+                onSearchChanged = onSummarySearchChanged,
+                onToggleField = onSummaryFieldToggled,
+                onToggleSelectAll = onSummarySelectAllToggled,
+                onSaveClick = onSummarySaveClick
+            )
+        }
+
+        uiState.summaryDialogMessage?.let { message ->
+            AlertDialog(
+                onDismissRequest = onDismissSummaryMessage,
+                confirmButton = {
+                    Button(onClick = onDismissSummaryMessage) {
+                        Text("OK")
+                    }
+                },
+                title = { Text("Summary Report") },
+                text = { Text(message) }
+            )
+        }
+
+        if (uiState.isScheduleDialogVisible) {
+            ScheduleReportDialog(
+                uiState = uiState,
+                filteredFields = viewModelScheduleFields(uiState),
+                onDismiss = onDismissScheduleDialog,
+                onEmailChanged = onScheduleEmailChanged,
+                onSubjectChanged = onScheduleSubjectChanged,
+                onBodyChanged = onScheduleBodyChanged,
+                onFrequencyChanged = onScheduleFrequencyChanged,
+                onSearchChanged = onScheduleSearchChanged,
+                onToggleField = onScheduleFieldToggled,
+                onToggleSelectAll = onScheduleSelectAllToggled,
+                onSaveClick = onScheduleSaveClick
+            )
+        }
+
+        uiState.scheduleDialogMessage?.let { message ->
+            AlertDialog(
+                onDismissRequest = onDismissScheduleMessage,
+                confirmButton = {
+                    Button(onClick = onDismissScheduleMessage) {
+                        Text("OK")
+                    }
+                },
+                title = { Text("Schedule Report") },
+                text = { Text(message) }
+            )
+        }
+
+        uiState.analyticsDialogMessage?.let { message ->
+            AlertDialog(
+                onDismissRequest = onDismissAnalyticsMessage,
+                confirmButton = {
+                    Button(onClick = onDismissAnalyticsMessage) {
+                        Text("OK")
+                    }
+                },
+                title = { Text("Analytics Report") },
+                text = { Text(message) }
             )
         }
     }
@@ -353,22 +532,58 @@ private fun <T> FilterCard(
 }
 
 @Composable
-private fun ReportsTypeSection(reportCards: List<ReportTypeCardModel>) {
+private fun ReportsTypeSection(
+    reportCards: List<ReportTypeCardModel>,
+    onSummaryReportClick: () -> Unit,
+    onScheduleReportClick: () -> Unit,
+    onAnalyticReportClick: () -> Unit
+) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         reportCards.forEach { card ->
-            ReportTypeCard(card = card)
+            ReportTypeCard(
+                card = card,
+                onClick = {
+                    when (card.kind) {
+                        ReportTypeCardKind.SUMMARY -> onSummaryReportClick()
+                        ReportTypeCardKind.ANALYTIC -> onAnalyticReportClick()
+                        ReportTypeCardKind.SCHEDULE -> onScheduleReportClick()
+                        else -> Unit
+                    }
+                }
+            )
         }
     }
 }
 
+private fun viewModelSummaryFields(uiState: ReportsUiState): List<String> {
+    val query = uiState.summarySearchQuery.trim()
+    return if (query.isBlank()) {
+        uiState.availableSummaryFields
+    } else {
+        uiState.availableSummaryFields.filter { it.contains(query, ignoreCase = true) }
+    }
+}
+
+private fun viewModelScheduleFields(uiState: ReportsUiState): List<String> {
+    val query = uiState.scheduleSearchQuery.trim()
+    return if (query.isBlank()) {
+        uiState.availableScheduleFields
+    } else {
+        uiState.availableScheduleFields.filter { it.contains(query, ignoreCase = true) }
+    }
+}
+
 @Composable
-private fun ReportTypeCard(card: ReportTypeCardModel) {
+private fun ReportTypeCard(
+    card: ReportTypeCardModel,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { },
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF0FA)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)

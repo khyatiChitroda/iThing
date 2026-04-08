@@ -130,7 +130,7 @@ class DashboardRepositoryImpl @Inject constructor(
         return DashboardWidgetSource(
             field = field,
             minValue = minValue,
-            maxValue = maxValue
+            maxValue = maxValue 
         )
     }
 
