@@ -29,7 +29,7 @@ data class DashboardUiState(
     val availableGroups: List<String> = listOf("All"),
     val selectedGroup: String = "All",
     val lastUpdatedAt: Long? = null,
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null
 )
@@ -43,112 +43,71 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
-    private var allIndustries: List<Industry> = emptyList()
-    private var allOems: List<Oem> = emptyList()
-    private var allCustomers: List<Customer> = emptyList()
-    private var allDevices: List<Device> = emptyList()
-
     init {
-        loadFilters()
-    }
-
-    fun loadFilters() {
-        viewModelScope.launch {
-            println("DashboardViewModel: loadFilters start")
-
-            val token = sessionManager.getToken()
-            println(
-                "DashboardViewModel: loadFilters tokenPresent=${!token.isNullOrBlank()} token=${token?.take(16)}..."
-            )
-
-            if (token.isNullOrBlank()) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Session not ready. Please login again."
-                    )
-                }
-                println("DashboardViewModel: loadFilters aborted: session token missing")
-                return@launch
-            }
-
-            val industriesResult = dashboardRepository.getIndustries()
-            val oemsResult = dashboardRepository.getOems()
-            val customersResult = dashboardRepository.getCustomers()
-            val devicesResult = dashboardRepository.getDevices()
-
-            val errorMessage = listOf(
-                industriesResult.exceptionOrNull(),
-                oemsResult.exceptionOrNull(),
-                customersResult.exceptionOrNull(),
-                devicesResult.exceptionOrNull()
-            ).firstOrNull()?.message
-
-            allIndustries = industriesResult.getOrDefault(emptyList())
-            allOems = oemsResult.getOrDefault(emptyList())
-            allCustomers = customersResult.getOrDefault(emptyList())
-            allDevices = devicesResult.getOrDefault(emptyList())
-            println(
-                "DashboardViewModel: loadFilters results industries=${allIndustries.size} oems=${allOems.size} customers=${allCustomers.size} devices=${allDevices.size} error=$errorMessage"
-            )
-
-            _uiState.update {
-                it.copy(
-                    industries = allIndustries,
-                    errorMessage = errorMessage
-                )
-            }
-            applyFilters()
-            _uiState.update { it.copy(isLoading = false) }
-        }
+        loadInitialFilters()
     }
 
     fun onIndustrySelected(industry: Industry?) {
-        _uiState.update {
-            it.copy(
-                selectedIndustry = industry,
-                selectedOem = null,
-                selectedCustomer = null,
-                selectedDevice = null,
-                widgets = emptyList(),
-                availableGroups = listOf("All"),
-                selectedGroup = "All",
-                lastUpdatedAt = null,
-                errorMessage = null
-            )
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    selectedIndustry = industry,
+                    selectedOem = null,
+                    selectedCustomer = null,
+                    selectedDevice = null,
+                    oems = emptyList(),
+                    customers = emptyList(),
+                    devices = emptyList(),
+                    widgets = emptyList(),
+                    availableGroups = listOf("All"),
+                    selectedGroup = "All",
+                    lastUpdatedAt = null,
+                    errorMessage = null,
+                    isLoading = true
+                )
+            }
+            loadOems(industry?.name)
         }
-        applyFilters()
     }
 
     fun onOemSelected(oem: Oem?) {
-        _uiState.update {
-            it.copy(
-                selectedOem = oem,
-                selectedCustomer = null,
-                selectedDevice = null,
-                widgets = emptyList(),
-                availableGroups = listOf("All"),
-                selectedGroup = "All",
-                lastUpdatedAt = null,
-                errorMessage = null
-            )
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    selectedOem = oem,
+                    selectedCustomer = null,
+                    selectedDevice = null,
+                    customers = emptyList(),
+                    devices = emptyList(),
+                    widgets = emptyList(),
+                    availableGroups = listOf("All"),
+                    selectedGroup = "All",
+                    lastUpdatedAt = null,
+                    errorMessage = null,
+                    isLoading = true
+                )
+            }
+            loadCustomers(oem?.id)
         }
-        applyFilters()
     }
 
     fun onCustomerSelected(customer: Customer?) {
-        _uiState.update {
-            it.copy(
-                selectedCustomer = customer,
-                selectedDevice = null,
-                widgets = emptyList(),
-                availableGroups = listOf("All"),
-                selectedGroup = "All",
-                lastUpdatedAt = null,
-                errorMessage = null
-            )
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    selectedCustomer = customer,
+                    selectedDevice = null,
+                    devices = emptyList(),
+                    widgets = emptyList(),
+                    availableGroups = listOf("All"),
+                    selectedGroup = "All",
+                    lastUpdatedAt = null,
+                    errorMessage = null,
+                    isLoading = true
+                )
+            }
+            loadDevices(customer?.id)
         }
-        applyFilters()
     }
 
     fun onDeviceSelected(device: Device?) {
@@ -172,14 +131,10 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             val customerId = _uiState.value.selectedCustomer?.id
             val deviceId = _uiState.value.selectedDevice?.id
-            println(
-                "DashboardViewModel: refreshDashboard customerId=$customerId deviceId=$deviceId"
-            )
             if (customerId != null && deviceId != null) {
                 _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
                 dashboardRepository.getDashboardWidgets(customerId, deviceId)
                     .onSuccess { widgets ->
-                        println("DashboardViewModel: refreshDashboard widgetsLoaded=${widgets.size}")
                         val groups = listOf("All") + widgets.mapNotNull { it.dashboardName }
                             .distinct()
                             .sorted()
@@ -192,13 +147,12 @@ class DashboardViewModel @Inject constructor(
                                 availableGroups = groups,
                                 selectedGroup = selectedGroup,
                                 lastUpdatedAt = System.currentTimeMillis(),
-                                isRefreshing = false
+                                isRefreshing = false,
+                                errorMessage = null
                             )
                         }
                     }
                     .onFailure { ex ->
-                        println("DashboardViewModel: refreshDashboard failed ${ex.message}")
-                        ex.printStackTrace()
                         _uiState.update {
                             it.copy(
                                 isRefreshing = false,
@@ -213,7 +167,7 @@ class DashboardViewModel @Inject constructor(
                         availableGroups = listOf("All"),
                         selectedGroup = "All",
                         lastUpdatedAt = null,
-                        errorMessage = "Select a customer to load widgets"
+                        errorMessage = "Select a customer and device to load widgets"
                     )
                 }
             }
@@ -231,33 +185,127 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun applyFilters() {
-        val state = _uiState.value
+    private fun loadInitialFilters() {
+        viewModelScope.launch {
+            val token = sessionManager.getToken()
+            if (token.isNullOrBlank()) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Session not ready. Please login again."
+                    )
+                }
+                return@launch
+            }
 
-        val filteredOems = state.selectedIndustry?.let { industry ->
-            allOems.filter { it.industry == industry.name }
-        } ?: allOems
+            dashboardRepository.getIndustries()
+                .onSuccess { industries ->
+                    _uiState.update {
+                        it.copy(
+                            industries = industries,
+                            oems = emptyList(),
+                            customers = emptyList(),
+                            devices = emptyList(),
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to load industries"
+                        )
+                    }
+                }
+        }
+    }
 
-        val filteredCustomers = allCustomers.filter { customer ->
-            val matchesIndustry = state.selectedIndustry?.name?.let { customer.industry == it } ?: true
-            val matchesOem = state.selectedOem?.id?.let { customer.oemId == it } ?: true
-            matchesIndustry && matchesOem
+    private suspend fun loadOems(industry: String?) {
+        if (industry.isNullOrBlank()) {
+            _uiState.update { it.copy(oems = emptyList(), customers = emptyList(), devices = emptyList(), isLoading = false) }
+            return
         }
 
-        val filteredDevices = allDevices.filter { device ->
-            val matchesIndustry = state.selectedIndustry?.name?.let { device.industry == it } ?: true
-            val matchesOem = state.selectedOem?.id?.let { device.oemId == it } ?: true
-            val matchesCustomer = state.selectedCustomer?.id?.let { device.customerId == it } ?: true
-            matchesIndustry && matchesOem && matchesCustomer
+        dashboardRepository.getOems(industry)
+            .onSuccess { oems ->
+                _uiState.update {
+                    it.copy(
+                        oems = oems,
+                        customers = emptyList(),
+                        devices = emptyList(),
+                        isLoading = false,
+                        errorMessage = null
+                    )
+                }
+            }
+            .onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        oems = emptyList(),
+                        customers = emptyList(),
+                        devices = emptyList(),
+                        isLoading = false,
+                        errorMessage = error.message ?: "Failed to load OEMs"
+                    )
+                }
+            }
+    }
+
+    private suspend fun loadCustomers(oemId: String?) {
+        if (oemId.isNullOrBlank()) {
+            _uiState.update { it.copy(customers = emptyList(), devices = emptyList(), isLoading = false) }
+            return
         }
 
-        _uiState.update {
-            it.copy(
-                industries = allIndustries,
-                oems = filteredOems,
-                customers = filteredCustomers,
-                devices = filteredDevices
-            )
+        dashboardRepository.getCustomers(oemId)
+            .onSuccess { customers ->
+                _uiState.update {
+                    it.copy(
+                        customers = customers,
+                        devices = emptyList(),
+                        isLoading = false,
+                        errorMessage = null
+                    )
+                }
+            }
+            .onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        customers = emptyList(),
+                        devices = emptyList(),
+                        isLoading = false,
+                        errorMessage = error.message ?: "Failed to load customers"
+                    )
+                }
+            }
+    }
+
+    private suspend fun loadDevices(customerId: String?) {
+        if (customerId.isNullOrBlank()) {
+            _uiState.update { it.copy(devices = emptyList(), isLoading = false) }
+            return
         }
+
+        dashboardRepository.getDevices(customerId)
+            .onSuccess { devices ->
+                _uiState.update {
+                    it.copy(
+                        devices = devices,
+                        isLoading = false,
+                        errorMessage = null
+                    )
+                }
+            }
+            .onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        devices = emptyList(),
+                        isLoading = false,
+                        errorMessage = error.message ?: "Failed to load devices"
+                    )
+                }
+            }
     }
 }

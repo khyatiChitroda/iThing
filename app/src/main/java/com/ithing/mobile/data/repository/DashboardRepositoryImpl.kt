@@ -39,9 +39,12 @@ class DashboardRepositoryImpl @Inject constructor(
         error.printStackTrace()
     }
 
-    override suspend fun getOems(): Result<List<Oem>> = runCatching {
+    override suspend fun getOems(industry: String?): Result<List<Oem>> = runCatching {
         val response = dashboardApi.getOems(
-            listRequest.copy(sortField = "name")
+            listRequest.copy(
+                sortField = "name",
+                filter = industry?.let { mapOf("industry" to it) } ?: emptyMap()
+            )
         )
         response.data.list.map { it.toDomain() }
     }.onFailure { error ->
@@ -49,16 +52,24 @@ class DashboardRepositoryImpl @Inject constructor(
         error.printStackTrace()
     }
 
-    override suspend fun getCustomers(): Result<List<Customer>> = runCatching {
-        val response = dashboardApi.getCustomers(listRequest)
+    override suspend fun getCustomers(oemId: String?): Result<List<Customer>> = runCatching {
+        val response = dashboardApi.getCustomers(
+            listRequest.copy(
+                filter = oemId?.let { mapOf("oem" to it) } ?: emptyMap()
+            )
+        )
         response.data.list.map { it.toDomain() }
     }.onFailure { error ->
         println("DashboardRepository: getCustomers failed ${error.message}")
         error.printStackTrace()
     }
 
-    override suspend fun getDevices(): Result<List<Device>> = runCatching {
-        val response = dashboardApi.getDevices(listRequest)  // use deviceApi instead of dashboardApi
+    override suspend fun getDevices(customerId: String?): Result<List<Device>> = runCatching {
+        val response = dashboardApi.getDevices(
+            listRequest.copy(
+                filter = customerId?.let { mapOf("customer" to it) } ?: emptyMap()
+            )
+        )
         response.data.list.map { it.toDomain() }
     }.onFailure { error ->
         println("DashboardRepository: getDevices failed ${error.message}")
