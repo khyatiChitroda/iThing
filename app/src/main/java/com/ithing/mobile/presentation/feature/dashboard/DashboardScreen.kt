@@ -181,7 +181,9 @@ private fun DashboardActionsSection(
             onClick = onRefresh,
             enabled = selectedCustomer && selectedDevice && !isRefreshing,
             shape = RoundedCornerShape(18.dp),
-            border = ButtonDefaults.outlinedButtonBorder.copy(width = 2.dp),
+            border = ButtonDefaults.outlinedButtonBorder(
+                enabled = selectedCustomer && selectedDevice && !isRefreshing
+            ).copy(width = 2.dp),
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = Color(0xFF223A84)
             ),

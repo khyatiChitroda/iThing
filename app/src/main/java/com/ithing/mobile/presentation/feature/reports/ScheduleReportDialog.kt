@@ -27,6 +27,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
@@ -279,7 +280,10 @@ private fun ScheduleFrequencyField(
             onValueChange = {},
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(),
+                .menuAnchor(
+                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                    enabled = true
+                ),
             readOnly = true,
             singleLine = true,
             trailingIcon = {

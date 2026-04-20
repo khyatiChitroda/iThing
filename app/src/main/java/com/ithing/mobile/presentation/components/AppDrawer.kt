@@ -4,11 +4,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Text
@@ -33,7 +33,7 @@ fun AppDrawer(
             modifier = Modifier.padding(start = 16.dp, bottom = 16.dp)
         )
 
-        Divider()
+        HorizontalDivider()
 
         DrawerItem(
             icon = Icons.Filled.Dashboard,
@@ -48,17 +48,17 @@ fun AppDrawer(
         )
 
         DrawerItem(
-            icon = Icons.Filled.HelpOutline,
+            icon = Icons.AutoMirrored.Filled.HelpOutline,
             label = "Help",
             onClick = onHelpClick
         )
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Divider()
+        HorizontalDivider()
 
         DrawerItem(
-            icon = Icons.Filled.Logout,
+            icon = Icons.AutoMirrored.Filled.Logout,
             label = "Logout",
             onClick = onLogout
         )

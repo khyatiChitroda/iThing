@@ -59,9 +59,9 @@ class DashboardViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(2, state.industries.size)
-        assertEquals(2, state.oems.size)
-        assertEquals(3, state.customers.size)
-        assertEquals(4, state.devices.size)
+        assertTrue(state.oems.isEmpty())
+        assertTrue(state.customers.isEmpty())
+        assertTrue(state.devices.isEmpty())
     }
 
     @Test
@@ -74,11 +74,32 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         viewModel.onIndustrySelected(Industry(id = "food", name = "Food"))
+        advanceUntilIdle()
 
-        val state = viewModel.uiState.value
+        var state = viewModel.uiState.value
         assertEquals(listOf("OEM Food"), state.oems.map { it.name })
+        assertTrue(state.customers.isEmpty())
+        assertTrue(state.devices.isEmpty())
+
+        viewModel.onOemSelected(state.oems.single())
+        advanceUntilIdle()
+
+        state = viewModel.uiState.value
         assertEquals(listOf("Customer A", "Customer B"), state.customers.map { it.name })
-        assertEquals(listOf("Device 1", "Device 2", "Device 3"), state.devices.map { it.name })
+        assertTrue(state.devices.isEmpty())
+
+        viewModel.onCustomerSelected(
+            Customer(
+                id = "customer-b",
+                name = "Customer B",
+                oemId = "oem-food",
+                industry = "Food"
+            )
+        )
+        advanceUntilIdle()
+
+        state = viewModel.uiState.value
+        assertEquals(listOf("Device 3"), state.devices.map { it.name })
     }
 
     @Test
@@ -91,7 +112,9 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         viewModel.onIndustrySelected(Industry(id = "food", name = "Food"))
+        advanceUntilIdle()
         viewModel.onOemSelected(Oem(id = "oem-food", name = "OEM Food", industry = "Food"))
+        advanceUntilIdle()
         viewModel.onCustomerSelected(
             Customer(
                 id = "customer-b",
@@ -100,6 +123,7 @@ class DashboardViewModelTest {
                 industry = "Food"
             )
         )
+        advanceUntilIdle()
 
         var state = viewModel.uiState.value
         assertEquals(listOf("Device 3"), state.devices.map { it.name })
@@ -128,7 +152,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.widgets.isEmpty())
-        assertEquals("Select a customer to load widgets", viewModel.uiState.value.errorMessage)
+        assertEquals("Select a customer and device to load widgets", viewModel.uiState.value.errorMessage)
     }
 
     private class FakeDashboardRepository : DashboardRepository {
@@ -173,16 +197,28 @@ class DashboardViewModelTest {
             return Result.success(fakeIndustries)
         }
 
-        override suspend fun getOems(): Result<List<Oem>> {
-            return Result.success(fakeOems)
+        override suspend fun getOems(industry: String?): Result<List<Oem>> {
+            return Result.success(
+                fakeOems.filter { oem ->
+                    industry.isNullOrBlank() || oem.industry == industry
+                }
+            )
         }
 
-        override suspend fun getCustomers(): Result<List<Customer>> {
-            return Result.success(fakeCustomers)
+        override suspend fun getCustomers(oemId: String?): Result<List<Customer>> {
+            return Result.success(
+                fakeCustomers.filter { customer ->
+                    oemId.isNullOrBlank() || customer.oemId == oemId
+                }
+            )
         }
 
-        override suspend fun getDevices(): Result<List<Device>> {
-            return Result.success(fakeDevices)
+        override suspend fun getDevices(customerId: String?): Result<List<Device>> {
+            return Result.success(
+                fakeDevices.filter { device ->
+                    customerId.isNullOrBlank() || device.customerId == customerId
+                }
+            )
         }
 
         override suspend fun getDashboardWidgets(
