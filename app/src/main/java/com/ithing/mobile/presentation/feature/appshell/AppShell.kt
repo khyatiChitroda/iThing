@@ -18,6 +18,8 @@ import com.ithing.mobile.presentation.feature.dashboard.DashboardRoute
 import com.ithing.mobile.presentation.feature.home.HomeScreen
 import com.ithing.mobile.presentation.feature.reports.ReportsRoute
 import com.ithing.mobile.presentation.navigation.AppDestination
+import com.ithing.mobile.presentation.root.AppContainer
+import com.ithing.mobile.presentation.theme.Transparent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -49,7 +51,7 @@ fun AppShell(
         sessionManager.expireSession()
     }
 
-    Scaffold(
+    AppContainer(
         topBar = {
             AppTopBar(
                 sessionManager = sessionManager,
@@ -72,11 +74,12 @@ fun AppShell(
         bottomBar = {
             BottomNavBar(innerNavController)
         }
-    ) { padding ->
+    ) { modifier ->
+
         NavHost(
             navController = innerNavController,
             startDestination = "home",
-            modifier = Modifier.padding(padding)
+            modifier = modifier
         ) {
             composable("home") {
                 HomeScreen()

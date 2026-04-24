@@ -12,24 +12,48 @@ import androidx.compose.ui.platform.LocalContext
 
 private val LightColorScheme = lightColorScheme(
     primary = NavyBlue,
-    secondary = AccentBlue,
-    background = LightGrayBg,
-    surface = White,
     onPrimary = White,
+    primaryContainer = LightBlue,
+    onPrimaryContainer = White,
+    secondary = AccentBlue,
     onSecondary = White,
-    onBackground = DarkText,
-    onSurface = DarkText
+    secondaryContainer = LightBlue.copy(alpha = 0.2f),
+    onSecondaryContainer = NavyBlue,
+    background = NavyBlue,
+    onBackground = White,
+    surface = CardBackground,
+    onSurface = DarkText,
+    surfaceVariant = BorderColor,
+    onSurfaceVariant = MutedText,
+    outline = BorderColor,
+    outlineVariant = BorderColor.copy(alpha = 0.5f),
+    error = ErrorRed,
+    onError = White,
+    errorContainer = ErrorRed.copy(alpha = 0.1f),
+    onErrorContainer = ErrorRed
 )
 
 private val DarkColorScheme = darkColorScheme(
     primary = AccentBlue,
-    secondary = NavyBlue,
-    background = DarkBackground,
-    surface = DarkBackground,
     onPrimary = White,
-    onSecondary = White,
+    primaryContainer = NavyBlue,
+    onPrimaryContainer = White,
+    secondary = LightBlue,
+    onSecondary = DarkText,
+    secondaryContainer = NavyBlue.copy(alpha = 0.3f),
+    onSecondaryContainer = White,
+    background = DarkBackground,
     onBackground = White,
-    onSurface = White
+    surface = DarkCardBg,
+    onSurface = White,
+    surfaceVariant = DarkBorder,
+    onSurfaceVariant = LightText,
+    outline = DarkBorder,
+    outlineVariant = DarkBorder.copy(alpha = 0.5f),
+    error = ErrorRed,
+    onError = White,
+    errorContainer = ErrorRed.copy(alpha = 0.2f),
+    onErrorContainer = ErrorRed
 )
 
 @Composable
@@ -44,7 +68,6 @@ fun IThingMobileTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }

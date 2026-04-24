@@ -12,6 +12,7 @@ import com.ithing.mobile.presentation.feature.home.HomeScreen
 import com.ithing.mobile.presentation.feature.login.LoginRoute
 import com.ithing.mobile.presentation.feature.login.LoginViewModel
 import com.ithing.mobile.presentation.feature.splash.SplashRoute
+import com.ithing.mobile.presentation.root.AppContainer
 
 @Composable
 fun AppNavGraph(
@@ -39,7 +40,7 @@ fun AppNavGraph(
             )
         }
         composable(AppDestination.Home.route) {
-            HomeScreen()
+                HomeScreen()
         }
 
         composable(AppDestination.AppShell.route) {

@@ -1,6 +1,8 @@
 package com.ithing.mobile.data.remote.api
 
 import com.ithing.mobile.data.remote.dto.dashboard.CustomerListResponseDto
+import com.ithing.mobile.data.remote.dto.dashboard.FetchEventsRequestDto
+import com.ithing.mobile.data.remote.dto.dashboard.FetchEventsResponseDto
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetsRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetsResponseDto
 import com.ithing.mobile.data.remote.dto.dashboard.DeviceListResponseDto
@@ -9,6 +11,7 @@ import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.OemListResponseDto
 import retrofit2.http.Body
 import retrofit2.http.POST
+import retrofit2.http.Url
 
 interface DashboardApi {
 
@@ -26,4 +29,10 @@ interface DashboardApi {
 
     @POST("device-list")
     suspend fun getDevices(@Body request: ListRequestDto): DeviceListResponseDto
+
+    @POST
+    suspend fun fetchEvents(
+        @Url url: String,
+        @Body request: FetchEventsRequestDto
+    ): FetchEventsResponseDto
 }

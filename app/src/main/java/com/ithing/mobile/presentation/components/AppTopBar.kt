@@ -1,6 +1,11 @@
 package com.ithing.mobile.presentation.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
@@ -18,9 +23,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import com.ithing.mobile.R
 import com.ithing.mobile.core.session.SessionManager
+import com.ithing.mobile.presentation.theme.White
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,16 +46,20 @@ fun AppTopBar(
 
     TopAppBar(
         title = {
-            Text(
-                text = "iThing",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1F2937)
+            Image(
+                painter = painterResource(id = R.drawable.ithing_logo),
+                contentDescription = "iThing",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .height(40.dp)
+                    .padding(start = 8.dp, end = 8.dp)
             )
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surface
+            containerColor = Color.Transparent,
+            scrolledContainerColor = Color.Transparent,
+            titleContentColor = White,
+            actionIconContentColor = White
         ),
         actions = {
             IconButton(onClick = onNotificationClick) {

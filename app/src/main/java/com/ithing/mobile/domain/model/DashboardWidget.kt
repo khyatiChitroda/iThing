@@ -1,9 +1,23 @@
 package com.ithing.mobile.domain.model
 
 data class DashboardWidgetSource(
-    val field: String,
+    val fields: List<String> = emptyList(),
     val minValue: Double? = null,
     val maxValue: Double? = null
+) {
+    val field: String
+        get() = fields.firstOrNull().orEmpty()
+}
+
+data class DashboardWidgetPoint(
+    val timestamp: Long,
+    val label: String,
+    val value: Double
+)
+
+data class DashboardWidgetSeries(
+    val label: String,
+    val points: List<DashboardWidgetPoint>
 )
 
 data class DashboardWidget(
@@ -15,5 +29,8 @@ data class DashboardWidget(
     val dashboardName: String?,
     val unit: String? = null,
     val index: Int? = null,
-    val sources: List<DashboardWidgetSource> = emptyList()
+    val sources: List<DashboardWidgetSource> = emptyList(),
+    val currentValue: Double? = null,
+    val currentValueLabel: String? = null,
+    val chartSeries: List<DashboardWidgetSeries> = emptyList()
 )

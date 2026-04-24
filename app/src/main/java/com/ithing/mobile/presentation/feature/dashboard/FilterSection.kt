@@ -64,20 +64,6 @@ fun FilterSection(
     Column(
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        if (isLoading) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = NavyBlue
-                )
-            }
-        }
-
         StyledFilterCard(
             title = "Industry",
             shortLabel = "IN",
@@ -159,7 +145,7 @@ private fun <T> StyledFilterCard(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     color = White,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
@@ -207,7 +193,7 @@ private fun <T> StyledFilterCard(
                         bottomStart = 28.dp,
                         bottomEnd = 28.dp
                     ),
-                    textStyle = MaterialTheme.typography.headlineSmall.copy(
+                    textStyle = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Normal,
                         color = Color(0xFF1F2937)
                     ),
