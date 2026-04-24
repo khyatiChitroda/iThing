@@ -22,11 +22,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Visibility
@@ -36,6 +36,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.IconButton
@@ -507,7 +508,10 @@ private fun <T> FilterCard(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(),
+                        .menuAnchor(
+                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            enabled = enabled
+                        ),
                     shape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp),
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                 )
@@ -1041,7 +1045,7 @@ private fun ReportsPaginationFooter(
                 onClick = { onPageChange(1) }
             )
             PaginationIconButton(
-                icon = Icons.Default.KeyboardArrowLeft,
+                icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                 enabled = currentPage > 1,
                 onClick = { onPageChange(currentPage - 1) }
             )
@@ -1052,7 +1056,7 @@ private fun ReportsPaginationFooter(
                 fontWeight = FontWeight.Medium
             )
             PaginationIconButton(
-                icon = Icons.Default.KeyboardArrowRight,
+                icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 enabled = currentPage < totalPages,
                 onClick = { onPageChange(currentPage + 1) }
             )

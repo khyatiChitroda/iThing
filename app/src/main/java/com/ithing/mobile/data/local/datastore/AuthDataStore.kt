@@ -18,7 +18,7 @@ private val Context.authDataStore by preferencesDataStore(
 
 @Singleton
 class AuthDataStore @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
 
     private object Keys {

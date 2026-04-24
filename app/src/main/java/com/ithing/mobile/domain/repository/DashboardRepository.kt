@@ -8,9 +8,9 @@ import com.ithing.mobile.domain.model.Oem
 
 interface DashboardRepository {
     suspend fun getIndustries(): Result<List<Industry>>
-    suspend fun getOems(): Result<List<Oem>>
-    suspend fun getCustomers(): Result<List<Customer>>
-    suspend fun getDevices(): Result<List<Device>>
+    suspend fun getOems(industry: String? = null): Result<List<Oem>>
+    suspend fun getCustomers(oemId: String? = null): Result<List<Customer>>
+    suspend fun getDevices(customerId: String? = null): Result<List<Device>>
     suspend fun getDashboardWidgets(
         customerId: String,
         deviceId: String

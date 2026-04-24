@@ -3,6 +3,7 @@ package com.ithing.mobile.presentation.components
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class BottomNavItem(
@@ -10,6 +11,12 @@ sealed class BottomNavItem(
     val title: String,
     val icon: ImageVector
 ) {
+
+    object Home : BottomNavItem(
+        route = "home",
+        title = "Home",
+        icon = Icons.Filled.Home
+    )
 
     object Dashboard : BottomNavItem(
         route = "dashboard",

@@ -4,36 +4,47 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.ithing.mobile.presentation.theme.AccentBlue
-import com.ithing.mobile.presentation.theme.LightGrayBg
-import com.ithing.mobile.presentation.theme.MutedText
+import com.ithing.mobile.presentation.components.EmptyState
+import com.ithing.mobile.presentation.components.IThingButton
+import com.ithing.mobile.presentation.components.IThingCard
+import com.ithing.mobile.presentation.components.IThingScreenContainer
+import com.ithing.mobile.presentation.components.InfoRow
+import com.ithing.mobile.presentation.components.LoadingIndicator
+import com.ithing.mobile.presentation.components.SectionHeader
+import com.ithing.mobile.presentation.components.StatusBadge
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,101 +76,72 @@ private fun DashboardContent(
     onGroupSelected: (String) -> Unit,
     onRefresh: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LightGrayBg)
-    ) {
-        if (uiState.isLoading) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F7FC)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(18.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Text(
-                                text = "Dashboard",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF49586E)
-                            )
+    val filteredWidgets = uiState.widgets.filter {
+        uiState.selectedGroup == "All" || it.dashboardName == uiState.selectedGroup
+    }
+    val showFullScreenLoader =
+        uiState.isLoading &&
+            uiState.industries.isEmpty() &&
+            uiState.oems.isEmpty() &&
+            uiState.customers.isEmpty() &&
+            uiState.devices.isEmpty()
 
-                            HorizontalDivider(color = Color(0xFFD8E1EC))
+    IThingScreenContainer { paddingValues ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = paddingValues.calculateTopPadding(),
+                bottom = 16.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SectionHeader(title = "Dashboard")
+                    
+                    Divider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp
+                    )
 
-                            FilterSection(
-                                industries = uiState.industries,
-                                oems = uiState.oems,
-                                customers = uiState.customers,
-                                devices = uiState.devices,
-                                selectedIndustry = uiState.selectedIndustry,
-                                selectedOem = uiState.selectedOem,
-                                selectedCustomer = uiState.selectedCustomer,
-                                selectedDevice = uiState.selectedDevice,
-                                onIndustrySelected = onIndustrySelected,
-                                onOemSelected = onOemSelected,
-                                onCustomerSelected = onCustomerSelected,
-                                onDeviceSelected = onDeviceSelected
-                            )
+                    FilterSection(
+                        industries = uiState.industries,
+                        oems = uiState.oems,
+                        customers = uiState.customers,
+                        devices = uiState.devices,
+                        isLoading = uiState.isLoading,
+                        selectedIndustry = uiState.selectedIndustry,
+                        selectedOem = uiState.selectedOem,
+                        selectedCustomer = uiState.selectedCustomer,
+                        selectedDevice = uiState.selectedDevice,
+                        onIndustrySelected = onIndustrySelected,
+                        onOemSelected = onOemSelected,
+                        onCustomerSelected = onCustomerSelected,
+                        onDeviceSelected = onDeviceSelected
+                    )
 
-                            DashboardControlsRow(
-                                groups = uiState.availableGroups,
-                                selectedGroup = uiState.selectedGroup,
-                                selectedCustomer = uiState.selectedCustomer != null,
-                                selectedDevice = uiState.selectedDevice != null,
-                                isRefreshing = uiState.isRefreshing,
-                                onGroupSelected = onGroupSelected,
-                                onRefresh = onRefresh
-                            )
+                    DashboardActionsSection(
+                        groups = uiState.availableGroups,
+                        selectedGroup = uiState.selectedGroup,
+                        selectedCustomer = uiState.selectedCustomer != null,
+                        selectedDevice = uiState.selectedDevice != null,
+                        isRefreshing = uiState.isRefreshing,
+                        lastUpdatedAt = uiState.lastUpdatedAt,
+                        onGroupSelected = onGroupSelected,
+                        onRefresh = onRefresh
+                    )
 
-                            DashboardStatusRow(lastUpdatedAt = uiState.lastUpdatedAt)
-                        }
-                    }
-                }
-
-                uiState.errorMessage?.let { message ->
-                    item {
+                    uiState.errorMessage?.let { message ->
                         ErrorBanner(message = message)
                     }
-                }
 
-                if (uiState.isRefreshing) {
-                    item {
-                        LoadingBanner(message = "Refreshing dashboard...")
-                    }
-                }
-
-                val filteredWidgets = uiState.widgets.filter {
-                    uiState.selectedGroup == "All" || it.dashboardName == uiState.selectedGroup
-                }
-
-                if (!uiState.isRefreshing && filteredWidgets.isEmpty()) {
-                    item {
+                    if (!uiState.isRefreshing && filteredWidgets.isEmpty()) {
                         DashboardEmptyState(
                             hasSelection = uiState.selectedCustomer != null && uiState.selectedDevice != null
                         )
-                    }
-                } else if (filteredWidgets.isNotEmpty()) {
-                    item {
+                    } else if (filteredWidgets.isNotEmpty()) {
                         DashboardWidgetGrid(
                             widgets = uiState.widgets,
                             selectedGroup = uiState.selectedGroup
@@ -168,43 +150,51 @@ private fun DashboardContent(
                 }
             }
         }
+
+        if (showFullScreenLoader) {
+            FullScreenDashboardLoader()
+        } else if (uiState.isRefreshing) {
+            FullScreenDashboardLoader(message = "Refreshing dashboard...")
+        }
     }
 }
 
 @Composable
-private fun DashboardControlsRow(
+private fun DashboardActionsSection(
     groups: List<String>,
     selectedGroup: String,
     selectedCustomer: Boolean,
     selectedDevice: Boolean,
     isRefreshing: Boolean,
+    lastUpdatedAt: Long?,
     onGroupSelected: (String) -> Unit,
     onRefresh: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        DashboardStatusRow(lastUpdatedAt = lastUpdatedAt)
+
         DashboardGroupSelector(
             groups = groups,
             selectedGroup = selectedGroup,
             onGroupSelected = onGroupSelected,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.fillMaxWidth()
         )
 
-        Button(
+        IThingButton(
+            text = if (isRefreshing) "Refreshing" else "Refresh",
             onClick = onRefresh,
             enabled = selectedCustomer && selectedDevice && !isRefreshing,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
-        ) {
-            androidx.compose.material3.Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = null
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(if (isRefreshing) "Refreshing" else "Refresh")
-        }
+            isLoading = isRefreshing,
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        )
     }
 }
 
@@ -214,88 +204,58 @@ private fun DashboardStatusRow(lastUpdatedAt: Long?) {
         SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault()).format(Date(it))
     }
 
-    Text(
-        text = timestamp?.let { "Dashboard Last Updated at $it" }
-            ?: "Select your filters and refresh to load dashboard widgets.",
-        style = MaterialTheme.typography.bodyLarge,
-        color = AccentBlue,
-        fontWeight = FontWeight.Medium
+    InfoRow(
+        label = "Status",
+        value = timestamp?.let { "Last updated: $it" } ?: "Select filters to load",
+        modifier = Modifier.padding(vertical = 4.dp)
     )
 }
 
 @Composable
 private fun DashboardEmptyState(hasSelection: Boolean) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F7FC)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 36.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = if (hasSelection) {
-                    "No dashboard settings have been configured."
-                } else {
-                    "Choose filters to continue."
-                },
-                style = MaterialTheme.typography.headlineSmall,
-                color = Color(0xFF5A6A7F),
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Text(
-                text = if (hasSelection) {
-                    "Please set up your dashboard to proceed."
-                } else {
-                    "Select industry, OEM, customer, and device, then refresh the dashboard."
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                color = MutedText,
-                textAlign = TextAlign.Center
-            )
-
-            if (hasSelection) {
-                Text(
-                    text = "Click Here to create dashboard",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = AccentBlue,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
+    EmptyState(
+        title = if (hasSelection) {
+            "No dashboard settings configured"
+        } else {
+            "Choose filters to continue"
+        },
+        description = if (hasSelection) {
+            "Please set up your dashboard to proceed."
+        } else {
+            "Select industry, OEM, customer, and device to view dashboard."
+        },
+        actionText = if (hasSelection) "Create Dashboard" else null,
+        onAction = if (hasSelection) { { /* TODO: Navigate to dashboard setup */ } } else null,
+        modifier = Modifier.padding(vertical = 16.dp)
+    )
 }
 
 @Composable
 private fun ErrorBanner(message: String) {
-    Card(
+    IThingCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        elevation = 0
     ) {
         Text(
             text = message,
-            modifier = Modifier.padding(16.dp),
-            color = MaterialTheme.colorScheme.onErrorContainer
+            modifier = Modifier.padding(12.dp),
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            style = MaterialTheme.typography.bodyMedium
         )
     }
 }
 
 @Composable
-private fun LoadingBanner(message: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+private fun FullScreenDashboardLoader(message: String = "Loading dashboard...") {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.92f)),
+        contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(text = message, color = MutedText)
+        LoadingIndicator(
+            message = message,
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
