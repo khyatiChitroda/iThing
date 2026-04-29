@@ -52,6 +52,7 @@ fun AppShell(
     }
 
     AppContainer(
+        showTopBar = true,
         topBar = {
             AppTopBar(
                 sessionManager = sessionManager,

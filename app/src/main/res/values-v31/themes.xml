@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Normal App Theme -->
+    <style name="Theme.IThingMobile" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/white</item>
+    </style>
+
+    <!-- Splash Theme -->
+    <style name="Theme.IThingMobile.Splash" parent="Theme.SplashScreen">
+
+        <item name="windowSplashScreenBackground">@color/white</item>
+
+        <!-- Use the actual app/launcher icon on Android 12+ splash. -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ithing_app_icon</item>
+
+        <!-- Avoid instant dismissal that can cause a flash/blank moment -->
+        <item name="windowSplashScreenAnimationDuration">300</item>
+
+        <!-- VERY IMPORTANT -->
+        <item name="postSplashScreenTheme">@style/Theme.IThingMobile</item>
+
+    </style>
+
+</resources>

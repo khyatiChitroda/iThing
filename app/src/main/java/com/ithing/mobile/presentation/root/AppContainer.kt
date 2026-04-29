@@ -20,6 +20,7 @@ import com.ithing.mobile.presentation.theme.Theme2Navy
 
 @Composable
 fun AppContainer(
+    showTopBar: Boolean = false,   // 👈 ADD THIS
     topBar: (@Composable () -> Unit)? = null,
     bottomBar: (@Composable () -> Unit)? = null,
     content: @Composable (Modifier) -> Unit
@@ -35,18 +36,26 @@ fun AppContainer(
     ) {
         Scaffold(
             containerColor = Color.Transparent,
+
             topBar = {
-                Column {
-                    topBar?.invoke()
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .shadow(4.dp)
-                    )
+                if (showTopBar && topBar != null) {
+                    Column {
+                        topBar()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .shadow(4.dp)
+                        )
+                    }
                 }
             },
-            bottomBar = { bottomBar?.invoke() }
+
+            bottomBar = {
+                if (showTopBar && bottomBar != null) {
+                    bottomBar()
+                }
+            }
         ) { innerPadding ->
             content(Modifier.padding(innerPadding))
         }
