@@ -27,7 +27,7 @@ kotlinx-coroutines-test = "1.7.3"
 mockito = "5.5.0"
 mockito-kotlin = "5.1.0"
 runtimeVersion = "1.10.6"
-
+coreSplash = "1.0.1"
 
 
 [libraries]
@@ -78,7 +78,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito-kotlin" }
 androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtimeVersion" }
-
+core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplash" }
 
 
 [plugins]
