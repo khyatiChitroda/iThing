@@ -4,17 +4,12 @@ package com.ithing.mobile.presentation.feature.dashboard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apartment
-import androidx.compose.material.icons.outlined.Business
-import androidx.compose.material.icons.outlined.Memory
-import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -22,7 +17,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -34,14 +28,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
+import com.ithing.mobile.presentation.theme.LightGrayBg
 import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.White
 
@@ -61,57 +54,60 @@ fun FilterSection(
     onCustomerSelected: (Customer?) -> Unit,
     onDeviceSelected: (Device?) -> Unit
 ) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
-        StyledFilterCard(
-            title = "Industry",
-            shortLabel = "IN",
-            icon = Icons.Outlined.Apartment,
-            selectedText = selectedIndustry?.name ?: "Select...",
-            options = industries,
-            optionLabel = { it.name },
-            enabled = industries.isNotEmpty(),
-            onSelected = onIndustrySelected
-        )
-        StyledFilterCard(
-            title = "OEM",
-            shortLabel = "OE",
-            icon = Icons.Outlined.Business,
-            selectedText = selectedOem?.name ?: "Select...",
-            options = oems,
-            optionLabel = { it.name },
-            enabled = selectedIndustry != null && oems.isNotEmpty(),
-            onSelected = onOemSelected
-        )
-        StyledFilterCard(
-            title = "Customer",
-            shortLabel = "CU",
-            icon = Icons.Outlined.PersonOutline,
-            selectedText = selectedCustomer?.name ?: "Select...",
-            options = customers,
-            optionLabel = { it.name },
-            enabled = selectedOem != null && customers.isNotEmpty(),
-            onSelected = onCustomerSelected
-        )
-        StyledFilterCard(
-            title = "Device",
-            shortLabel = "DV",
-            icon = Icons.Outlined.Memory,
-            selectedText = selectedDevice?.name ?: "Select...",
-            options = devices,
-            optionLabel = { it.name },
-            enabled = selectedCustomer != null && devices.isNotEmpty(),
-            onSelected = onDeviceSelected
-        )
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            FilterCard(
+                title = "Industry",
+                iconLabel = "IN",
+                selectedText = selectedIndustry?.name ?: "Select...",
+                options = industries,
+                optionLabel = { it.name },
+                enabled = industries.isNotEmpty() && !isLoading,
+                onSelected = onIndustrySelected
+            )
+            FilterCard(
+                title = "OEM",
+                iconLabel = "OE",
+                selectedText = selectedOem?.name ?: "Select...",
+                options = oems,
+                optionLabel = { it.name },
+                enabled = selectedIndustry != null && oems.isNotEmpty() && !isLoading,
+                onSelected = onOemSelected
+            )
+            FilterCard(
+                title = "Customer",
+                iconLabel = "CU",
+                selectedText = selectedCustomer?.name ?: "Select...",
+                options = customers,
+                optionLabel = { it.name },
+                enabled = selectedOem != null && customers.isNotEmpty() && !isLoading,
+                onSelected = onCustomerSelected
+            )
+            FilterCard(
+                title = "Device",
+                iconLabel = "DV",
+                selectedText = selectedDevice?.name ?: "Select...",
+                options = devices,
+                optionLabel = { it.name },
+                enabled = selectedCustomer != null && devices.isNotEmpty() && !isLoading,
+                onSelected = onDeviceSelected
+            )
+        }
     }
 }
 
 @Composable
-private fun <T> StyledFilterCard(
+private fun <T> FilterCard(
     title: String,
-    shortLabel: String,
-    icon: ImageVector,
+    iconLabel: String,
     selectedText: String,
     options: List<T>,
     optionLabel: (T) -> String,
@@ -122,9 +118,9 @@ private fun <T> StyledFilterCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -135,37 +131,29 @@ private fun <T> StyledFilterCard(
                     .fillMaxWidth()
                     .background(
                         color = NavyBlue,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                            topStart = 28.dp,
-                            topEnd = 28.dp
-                        )
+                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                     )
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     color = White,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f)
                 )
 
                 Surface(
-                    color = Color(0xFF4B63AF),
-                    shape = androidx.compose.foundation.shape.CircleShape
+                    shape = CircleShape,
+                    color = White.copy(alpha = 0.16f)
                 ) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    Text(
+                        text = iconLabel,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        color = White,
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
 
@@ -189,26 +177,8 @@ private fun <T> StyledFilterCard(
                             type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                             enabled = enabled
                         ),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                        bottomStart = 28.dp,
-                        bottomEnd = 28.dp
-                    ),
-                    textStyle = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Normal,
-                        color = Color(0xFF1F2937)
-                    ),
-                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                        focusedContainerColor = White,
-                        unfocusedContainerColor = White,
-                        disabledContainerColor = White,
-                        focusedBorderColor = Color(0xFF2D469A),
-                        unfocusedBorderColor = Color(0xFF7F7D8A),
-                        disabledBorderColor = Color(0xFFD8DEE8),
-                        focusedTrailingIconColor = Color(0xFF71717A),
-                        unfocusedTrailingIconColor = Color(0xFF71717A),
-                        disabledTextColor = Color(0xFF9CA3AF),
-                        disabledTrailingIconColor = Color(0xFFC4CAD5)
-                    )
+                    shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                 )
 
                 ExposedDropdownMenu(
