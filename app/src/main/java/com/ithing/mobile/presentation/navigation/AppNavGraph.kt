@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import com.ithing.mobile.presentation.feature.appshell.AppShell
 import com.ithing.mobile.presentation.feature.changepassword.ChangePasswordRoute
 import com.ithing.mobile.presentation.feature.forgetpassword.ForgotPasswordRoute
+import com.ithing.mobile.presentation.feature.help.HelpRoute
 import com.ithing.mobile.presentation.feature.home.HomeScreen
 import com.ithing.mobile.presentation.feature.login.LoginRoute
 import com.ithing.mobile.presentation.feature.login.LoginViewModel
@@ -48,6 +49,10 @@ fun AppNavGraph(
         }
         composable(AppDestination.ChangePassword.route) {
             ChangePasswordRoute(navController = navController)
+        }
+
+        composable(AppDestination.Help.route) {
+            HelpRoute(navController = navController)
         }
 
     }

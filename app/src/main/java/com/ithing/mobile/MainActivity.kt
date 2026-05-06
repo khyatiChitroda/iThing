@@ -15,6 +15,7 @@ import com.ithing.mobile.presentation.theme.IThingMobileTheme
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.navigation.compose.rememberNavController
 import com.ithing.mobile.presentation.navigation.AppNavGraph
+import kotlinx.coroutines.delay
 
 
 @AndroidEntryPoint
@@ -31,6 +32,7 @@ class MainActivity : ComponentActivity() {
             IThingMobileTheme {
                 LaunchedEffect(Unit) {
                     withFrameNanos { }
+                    delay(1000)
                     isUiReady = true
                 }
                 val navController = rememberNavController()

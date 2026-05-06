@@ -57,10 +57,10 @@ fun AppShell(
             AppTopBar(
                 sessionManager = sessionManager,
                 onChangePassword = {
-                    navController.navigate("change_password")
+                    navController.navigate(AppDestination.ChangePassword.route)
                 },
                 onHelpClick = {
-                    navController.navigate("help")
+                    navController.navigate(AppDestination.Help.route)
                 },
                 onLogout = {
                     scope.launch {

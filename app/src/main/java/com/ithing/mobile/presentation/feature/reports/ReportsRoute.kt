@@ -1,12 +1,19 @@
 package com.ithing.mobile.presentation.feature.reports
 
+import android.app.DownloadManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,7 +34,6 @@ import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,24 +45,31 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ithing.mobile.domain.model.Customer
@@ -65,10 +77,14 @@ import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.model.ReportSchedule
+import com.ithing.mobile.presentation.theme.AccentBlue
 import com.ithing.mobile.presentation.theme.LightGrayBg
 import com.ithing.mobile.presentation.theme.MutedText
 import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.White
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.io.File
 
 private data class ReportTypeCardModel(
     val kind: ReportTypeCardKind,
@@ -122,18 +138,22 @@ fun ReportsRoute(
         onScheduleSelectAllToggled = viewModel::onScheduleSelectAllToggled,
         onScheduleSaveClick = viewModel::onScheduleSaveClick,
         onAnalyticReportClick = viewModel::onAnalyticReportClick,
+        onExceptionReportClick = viewModel::onExceptionReportClick,
         onDismissAnalyticsDialog = viewModel::dismissAnalyticsDialog,
         onDismissAnalyticsMessage = viewModel::dismissAnalyticsMessage,
+        onDismissExceptionMessage = viewModel::dismissExceptionMessage,
+        onExceptionDownloadHandled = viewModel::onExceptionDownloadHandled,
         onAnalyticsTimeSpanPresetSelected = viewModel::onAnalyticsTimeSpanPresetSelected,
         onAnalyticsCustomDateRangeSelected = viewModel::onAnalyticsCustomDateRangeSelected,
         onAnalyticsRowTitleChanged = viewModel::onAnalyticsRowTitleChanged,
         onAnalyticsRowChartTypeChanged = viewModel::onAnalyticsRowChartTypeChanged,
-        onAnalyticsRowFieldChanged = viewModel::onAnalyticsRowFieldChanged,
+        onAnalyticsRowFieldToggled = viewModel::onAnalyticsRowFieldToggled,
         onAnalyticsRowFrequencyChanged = viewModel::onAnalyticsRowFrequencyChanged,
         onAddAnalyticsRow = viewModel::addAnalyticsRow,
         onRemoveAnalyticsRow = viewModel::removeAnalyticsRow,
         onAnalyticsSaveViewClick = viewModel::onAnalyticsSaveViewClick,
         onAnalyticsGeneratePdfClick = viewModel::onAnalyticsGeneratePdfClick,
+        onDeleteScheduleReport = viewModel::deleteScheduleReport,
         onRefresh = viewModel::refreshReports,
         onPageChange = viewModel::goToPage
     )
@@ -170,22 +190,27 @@ private fun ReportsScreen(
     onScheduleSelectAllToggled: () -> Unit,
     onScheduleSaveClick: () -> Unit,
     onAnalyticReportClick: () -> Unit,
+    onExceptionReportClick: () -> Unit,
     onDismissAnalyticsDialog: () -> Unit,
     onDismissAnalyticsMessage: () -> Unit,
+    onDismissExceptionMessage: () -> Unit,
+    onExceptionDownloadHandled: () -> Unit,
     onAnalyticsTimeSpanPresetSelected: (AnalyticsDatePreset) -> Unit,
     onAnalyticsCustomDateRangeSelected: (Long, Long) -> Unit,
     onAnalyticsRowTitleChanged: (String, String) -> Unit,
     onAnalyticsRowChartTypeChanged: (String, AnalyticsChartType?) -> Unit,
-    onAnalyticsRowFieldChanged: (String, String?) -> Unit,
+    onAnalyticsRowFieldToggled: (String, String) -> Unit,
     onAnalyticsRowFrequencyChanged: (String, AnalyticsFrequency?) -> Unit,
     onAddAnalyticsRow: () -> Unit,
     onRemoveAnalyticsRow: (String) -> Unit,
     onAnalyticsSaveViewClick: () -> Unit,
     onAnalyticsGeneratePdfClick: () -> Unit,
+    onDeleteScheduleReport: (String) -> Unit,
     onRefresh: () -> Unit,
     onPageChange: (Int) -> Unit
 ) {
     var selectedFields by remember { mutableStateOf<List<String>?>(null) }
+    val context = LocalContext.current
 
     val reportCards = remember {
         listOf(
@@ -245,7 +270,14 @@ private fun ReportsScreen(
                     reportCards = reportCards,
                     onSummaryReportClick = onSummaryReportClick,
                     onScheduleReportClick = onScheduleReportClick,
-                    onAnalyticReportClick = onAnalyticReportClick
+                    onAnalyticReportClick = onAnalyticReportClick,
+                    onExceptionReportClick = onExceptionReportClick
+                )
+            }
+
+            item {
+                SavedReportsSection(
+                    refreshKey = uiState.savedReportsVersion
                 )
             }
 
@@ -262,6 +294,7 @@ private fun ReportsScreen(
                     errorMessage = uiState.errorMessage,
                     onRefresh = onRefresh,
                     onViewFields = { selectedFields = it },
+                    onDeleteScheduleReport = onDeleteScheduleReport,
                     onPageChange = onPageChange
                 )
             }
@@ -282,7 +315,7 @@ private fun ReportsScreen(
                 onCustomDateRangeSelected = onAnalyticsCustomDateRangeSelected,
                 onRowTitleChanged = onAnalyticsRowTitleChanged,
                 onRowChartTypeChanged = onAnalyticsRowChartTypeChanged,
-                onRowFieldChanged = onAnalyticsRowFieldChanged,
+                onRowFieldToggled = onAnalyticsRowFieldToggled,
                 onRowFrequencyChanged = onAnalyticsRowFrequencyChanged,
                 onAddMore = onAddAnalyticsRow,
                 onRemoveRow = onRemoveAnalyticsRow,
@@ -309,15 +342,10 @@ private fun ReportsScreen(
         }
 
         uiState.summaryDialogMessage?.let { message ->
-            AlertDialog(
-                onDismissRequest = onDismissSummaryMessage,
-                confirmButton = {
-                    Button(onClick = onDismissSummaryMessage) {
-                        Text("OK")
-                    }
-                },
-                title = { Text("Summary Report") },
-                text = { Text(message) }
+            ReportsTopToast(
+                title = "Summary Report",
+                message = message,
+                onDismiss = onDismissSummaryMessage
             )
         }
 
@@ -338,29 +366,93 @@ private fun ReportsScreen(
         }
 
         uiState.scheduleDialogMessage?.let { message ->
-            AlertDialog(
-                onDismissRequest = onDismissScheduleMessage,
-                confirmButton = {
-                    Button(onClick = onDismissScheduleMessage) {
-                        Text("OK")
-                    }
-                },
-                title = { Text("Schedule Report") },
-                text = { Text(message) }
+            ReportsTopToast(
+                title = "Schedule Report",
+                message = message,
+                onDismiss = onDismissScheduleMessage
             )
         }
 
         uiState.analyticsDialogMessage?.let { message ->
-            AlertDialog(
-                onDismissRequest = onDismissAnalyticsMessage,
-                confirmButton = {
-                    Button(onClick = onDismissAnalyticsMessage) {
-                        Text("OK")
-                    }
-                },
-                title = { Text("Analytics Report") },
-                text = { Text(message) }
+            ReportsTopToast(
+                title = "Analytics Report",
+                message = message,
+                onDismiss = onDismissAnalyticsMessage
             )
+        }
+
+        uiState.exceptionDialogMessage?.let { message ->
+            ReportsTopToast(
+                title = "Exception Report",
+                message = message,
+                onDismiss = onDismissExceptionMessage
+            )
+        }
+
+        uiState.exceptionDownloadUrl?.let { url ->
+            LaunchedEffect(url) {
+                enqueueXlsxDownload(context, url)
+                onExceptionDownloadHandled()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportsTopToast(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    LaunchedEffect(message) {
+        delay(4500)
+        onDismiss()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 10.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Surface(
+            color = Color(0xFF0F172A),
+            shape = RoundedCornerShape(14.dp),
+            shadowElevation = 6.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(Color(0xFF22C55E), CircleShape)
+                )
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = White
+                    )
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFE2E8F0),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color(0xFFE2E8F0)
+                    )
+                }
+            }
         }
     }
 }
@@ -375,9 +467,9 @@ private fun ReportsFilterSection(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -530,7 +622,8 @@ private fun ReportsTypeSection(
     reportCards: List<ReportTypeCardModel>,
     onSummaryReportClick: () -> Unit,
     onScheduleReportClick: () -> Unit,
-    onAnalyticReportClick: () -> Unit
+    onAnalyticReportClick: () -> Unit,
+    onExceptionReportClick: () -> Unit
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -543,7 +636,7 @@ private fun ReportsTypeSection(
                         ReportTypeCardKind.SUMMARY -> onSummaryReportClick()
                         ReportTypeCardKind.ANALYTIC -> onAnalyticReportClick()
                         ReportTypeCardKind.SCHEDULE -> onScheduleReportClick()
-                        else -> Unit
+                        ReportTypeCardKind.EXCEPTION -> onExceptionReportClick()
                     }
                 }
             )
@@ -578,9 +671,9 @@ private fun ReportTypeCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF0FA)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -643,13 +736,16 @@ private fun ScheduledReportsSection(
     errorMessage: String?,
     onRefresh: () -> Unit,
     onViewFields: (List<String>) -> Unit,
+    onDeleteScheduleReport: (String) -> Unit,
     onPageChange: (Int) -> Unit
 ) {
+    var pendingDeleteSchedule by remember { mutableStateOf<ReportSchedule?>(null) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -713,10 +809,30 @@ private fun ScheduledReportsSection(
                                 schedules.forEach { schedule ->
                                     ScheduledReportsRow(
                                         schedule = schedule,
-                                        onViewFields = onViewFields
+                                        onViewFields = onViewFields,
+                                        onDeleteClick = { pendingDeleteSchedule = schedule }
                                     )
                                 }
                             }
+                        }
+
+                        pendingDeleteSchedule?.let { schedule ->
+                            androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { pendingDeleteSchedule = null },
+                                title = { Text("Delete Schedule?") },
+                                text = { Text("This will remove the scheduled report for ${schedule.email}.") },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            pendingDeleteSchedule = null
+                                            onDeleteScheduleReport(schedule.id)
+                                        }
+                                    ) { Text("Delete") }
+                                },
+                                dismissButton = {
+                                    OutlinedButton(onClick = { pendingDeleteSchedule = null }) { Text("Cancel") }
+                                }
+                            )
                         }
 
                         ReportsPaginationFooter(
@@ -743,6 +859,7 @@ private fun ReportsTableContainer(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(scrollState)
+            .padding(horizontal = 8.dp)
     ) {
         Column(
             modifier = Modifier.width(840.dp),
@@ -750,6 +867,181 @@ private fun ReportsTableContainer(
             content = content
         )
     }
+}
+
+private fun enqueueXlsxDownload(
+    context: Context,
+    url: String
+) {
+    val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    val uri = Uri.parse(url)
+
+    val fileName = uri.lastPathSegment
+        ?.substringAfterLast('/')
+        ?.takeIf { it.isNotBlank() }
+        ?: "exception-report.xlsx"
+
+    val request = DownloadManager.Request(uri)
+        .setTitle(fileName)
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    request.setDestinationInExternalFilesDir(context, null, "reports/$fileName")
+
+    downloadManager.enqueue(request)
+}
+
+@Composable
+private fun SavedReportsSection(
+    refreshKey: Int
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var files by remember(refreshKey) { mutableStateOf<List<File>>(emptyList()) }
+
+    fun loadFiles() {
+        scope.launch {
+            val dir = context.getExternalFilesDir("reports") ?: File(context.filesDir, "reports")
+            files = dir.listFiles()
+                ?.filter { it.isFile && (it.extension.equals("pdf", true) || it.extension.equals("xlsx", true)) }
+                ?.sortedByDescending { it.lastModified() }
+                .orEmpty()
+        }
+    }
+
+    LaunchedEffect(refreshKey) {
+        loadFiles()
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = White)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Saved Reports",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF233A69)
+                )
+
+                IconButton(onClick = { loadFiles() }) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Refresh",
+                        tint = Color(0xFF233A69)
+                    )
+                }
+            }
+
+            if (files.isEmpty()) {
+                Text(
+                    text = "No saved reports yet. Generate an Analytic Report or export an Exception Report.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MutedText,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+                return@Column
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                files.take(6).forEach { file ->
+                    SavedReportRow(
+                        file = file,
+                        onOpen = { openReportFile(context, file) },
+                        onDelete = {
+                            file.delete()
+                            loadFiles()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedReportRow(
+    file: File,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpen)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF0F172A),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${(file.length() / 1024).coerceAtLeast(1)} KB",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MutedText
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                IconButton(onClick = onOpen) {
+                    Icon(
+                        imageVector = Icons.Outlined.Visibility,
+                        contentDescription = "Open",
+                        tint = NavyBlue
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Outlined.DeleteOutline,
+                        contentDescription = "Delete",
+                        tint = Color(0xFFB91C1C)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun openReportFile(
+    context: Context,
+    file: File
+) {
+    val uri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file
+    )
+
+    val mime = when (file.extension.lowercase()) {
+        "pdf" -> "application/pdf"
+        "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else -> "*/*"
+    }
+
+    val intent = Intent(Intent.ACTION_VIEW)
+        .setDataAndType(uri, mime)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+    context.startActivity(intent)
 }
 
 @Composable
@@ -839,9 +1131,9 @@ private fun ScheduledReportsRow(
 ) {
     Card(
         modifier = Modifier.width(840.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier

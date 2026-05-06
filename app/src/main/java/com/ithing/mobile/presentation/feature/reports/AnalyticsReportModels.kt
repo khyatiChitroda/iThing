@@ -42,7 +42,7 @@ data class AnalyticsChartConfigUi(
     val id: String = UUID.randomUUID().toString(),
     val title: String = "",
     val chartType: AnalyticsChartType? = null,
-    val selectedField: String? = null,
+    val selectedFields: List<String> = emptyList(),
     val frequency: AnalyticsFrequency? = null,
     val titleError: String? = null,
     val chartTypeError: String? = null,
