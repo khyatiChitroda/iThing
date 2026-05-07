@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "IThing Mobile"
 include(":app")
+include(":shared")
