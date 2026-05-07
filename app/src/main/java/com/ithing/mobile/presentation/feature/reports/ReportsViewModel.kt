@@ -1,5 +1,6 @@
 package com.ithing.mobile.presentation.feature.reports
 
+import android.content.Context
 import com.ithing.mobile.core.session.SessionManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,14 +10,18 @@ import com.ithing.mobile.domain.model.DeviceOwnerDetails
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.model.ReportSchedule
+import com.ithing.mobile.domain.model.DeviceMappingFieldOption
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.repository.ReportsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class ReportsUiState(
@@ -33,7 +38,7 @@ data class ReportsUiState(
     val pageSize: Int = 10,
     val totalCount: Int = 0,
     val totalPages: Int = 0,
-    val availableAnalyticsFields: List<String> = emptyList(),
+    val availableAnalyticsFields: List<DeviceMappingFieldOption> = emptyList(),
     val availableSummaryFields: List<String> = emptyList(),
     val availableScheduleFields: List<String> = emptyList(),
     val isAnalyticsDialogVisible: Boolean = false,
@@ -68,6 +73,10 @@ data class ReportsUiState(
     val analyticsSelectedPreset: AnalyticsDatePreset = AnalyticsDatePreset.TODAY,
     val analyticsChartRows: List<AnalyticsChartConfigUi> = emptyList(),
     val deviceOwnerDetails: DeviceOwnerDetails? = null,
+    val downloadUrl: String? = null,
+    val exceptionDialogMessage: String? = null,
+    val exceptionDownloadUrl: String? = null,
+    val savedReportsVersion: Int = 0,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null
@@ -77,7 +86,8 @@ data class ReportsUiState(
 class ReportsViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository,
     private val reportsRepository: ReportsRepository,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val fallbackAnalyticsFields = listOf(
@@ -217,6 +227,60 @@ class ReportsViewModel @Inject constructor(
         }
     }
 
+    fun onExceptionReportClick() {
+        val device = _uiState.value.selectedDevice
+        if (device == null) {
+            _uiState.update { it.copy(exceptionDialogMessage = "Select industry, OEM, customer, and device first.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(exceptionDialogMessage = "Preparing exception report...") }
+            val result = reportsRepository.exportExceptionReportUrl()
+            if (result.isSuccess) {
+                _uiState.update {
+                    it.copy(
+                        exceptionDialogMessage = "Download started.",
+                        exceptionDownloadUrl = result.getOrNull(),
+                        savedReportsVersion = it.savedReportsVersion + 1
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        exceptionDialogMessage = result.exceptionOrNull()?.message
+                            ?: "Failed to export exception report."
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissExceptionMessage() {
+        _uiState.update { it.copy(exceptionDialogMessage = null) }
+    }
+
+    fun onExceptionDownloadHandled() {
+        _uiState.update { it.copy(exceptionDownloadUrl = null) }
+    }
+
+    fun deleteScheduleReport(id: String) {
+        viewModelScope.launch {
+            val result = reportsRepository.deleteScheduleReport(id)
+            if (result.isSuccess) {
+                _uiState.update { it.copy(scheduleDialogMessage = "Schedule deleted successfully.") }
+                refreshReports()
+            } else {
+                _uiState.update {
+                    it.copy(
+                        scheduleDialogMessage = result.exceptionOrNull()?.message
+                            ?: "Failed to delete schedule."
+                    )
+                }
+            }
+        }
+    }
+
     fun goToPage(page: Int) {
         val state = _uiState.value
         val deviceId = state.selectedDevice?.id ?: return
@@ -240,6 +304,7 @@ class ReportsViewModel @Inject constructor(
             .flatMap { it.fields }
             .distinct()
             .ifEmpty { fallbackAnalyticsFields }
+            .map { DeviceMappingFieldOption(it, it) }
 
         if (state.isAnalyticsDialogVisible) return
 
@@ -288,7 +353,7 @@ class ReportsViewModel @Inject constructor(
             val mappingResult = reportsRepository.getDeviceMappingFields(selectedDevice.id)
             _uiState.update {
                 it.copy(
-                    availableSummaryFields = mappingResult.getOrDefault(emptyList()),
+                    availableSummaryFields = mappingResult.getOrDefault(emptyList()).map { option -> option.value },
                     isSummaryFieldsLoading = false,
                     summaryDialogMessage = mappingResult.exceptionOrNull()?.message
                 )
@@ -326,7 +391,7 @@ class ReportsViewModel @Inject constructor(
             val mappingResult = reportsRepository.getDeviceMappingFields(selectedDevice.id)
             _uiState.update {
                 it.copy(
-                    availableScheduleFields = mappingResult.getOrDefault(emptyList()),
+                    availableScheduleFields = mappingResult.getOrDefault(emptyList()).map { option -> option.value },
                     isScheduleFieldsLoading = false,
                     scheduleDialogMessage = mappingResult.exceptionOrNull()?.message
                 )
@@ -338,7 +403,6 @@ class ReportsViewModel @Inject constructor(
         _uiState.update {
             it.copy(isAnalyticsDialogVisible = false)
         }
-        resetAnalyticsState()
     }
 
     fun dismissAnalyticsMessage() {
@@ -349,7 +413,6 @@ class ReportsViewModel @Inject constructor(
         _uiState.update {
             it.copy(isSummaryDialogVisible = false)
         }
-        resetSummaryState()
     }
 
     fun dismissSummaryMessage() {
@@ -358,11 +421,14 @@ class ReportsViewModel @Inject constructor(
 
     fun dismissScheduleDialog() {
         _uiState.update { it.copy(isScheduleDialogVisible = false) }
-        resetScheduleState()
     }
 
     fun dismissScheduleMessage() {
         _uiState.update { it.copy(scheduleDialogMessage = null) }
+    }
+
+    fun consumeDownloadUrl() {
+        _uiState.update { it.copy(downloadUrl = null) }
     }
 
     fun onSummaryEmailChanged(value: String) {
@@ -410,8 +476,7 @@ class ReportsViewModel @Inject constructor(
                 summaryTimeSpanStart = normalizedStart,
                 summaryTimeSpanEnd = normalizedEnd,
                 summaryTimeSpanLabel = analyticsDateRangeLabel(normalizedStart, normalizedEnd),
-                summaryTimeSpanError = if (analyticsIsRangeWithin15Days(normalizedStart, normalizedEnd)) null
-                else "Date range cannot exceed 15 days."
+                summaryTimeSpanError = null
             )
         }
     }
@@ -445,8 +510,70 @@ class ReportsViewModel @Inject constructor(
     }
 
     fun onSummarySaveClick() {
-        _uiState.update {
-            it.copy(summaryDialogMessage = "Summary report save will be wired in the next step.")
+        val state = _uiState.value
+        val device = state.selectedDevice ?: return
+        val customerId = device.customerId
+        val oemId = device.oemId
+        if (customerId.isNullOrBlank() || oemId.isNullOrBlank()) {
+            _uiState.update { it.copy(summaryDialogMessage = "Customer/OEM not found for this device.") }
+            return
+        }
+
+        val start = state.summaryTimeSpanStart
+        val end = state.summaryTimeSpanEnd
+        if (start == null || end == null) {
+            _uiState.update { it.copy(summaryDialogMessage = "Please select a date range.") }
+            return
+        }
+
+        val fields = state.summarySelectedFields.toList()
+        if (fields.isEmpty()) {
+            _uiState.update { it.copy(summaryDialogMessage = "Please select at least one field.") }
+            return
+        }
+
+        val millisInDay = 24L * 60 * 60 * 1000
+        val inclusiveDays = ((end - start) / millisInDay) + 1
+        if (inclusiveDays > 45) {
+            _uiState.update { it.copy(summaryDialogMessage = "Invalid: Date range exceeds 45 days.") }
+            return
+        }
+
+        viewModelScope.launch {
+            if (inclusiveDays > 15) {
+                _uiState.update {
+                    it.copy(summaryDialogMessage = "Your report is being processed. You will receive it via email.")
+                }
+                dismissSummaryDialog()
+            }
+
+            val result = reportsRepository.generateSummaryReport(
+                deviceId = device.id,
+                customerId = customerId,
+                oemId = oemId,
+                email = state.summaryEmail,
+                subject = state.summarySubject,
+                body = state.summaryBody,
+                fromTimestamp = start,
+                toTimestamp = end,
+                fields = fields
+            )
+
+            val url = result.getOrNull()
+            if (result.isSuccess) {
+                _uiState.update {
+                    it.copy(
+                        summaryDialogMessage = "Report triggered. Please wait. You will get an email on ${state.summaryEmail}",
+                        downloadUrl = url
+                    )
+                }
+                dismissSummaryDialog()
+                refreshReports()
+            } else {
+                _uiState.update {
+                    it.copy(summaryDialogMessage = result.exceptionOrNull()?.message ?: "Failed to generate report.")
+                }
+            }
         }
     }
 
@@ -510,15 +637,49 @@ class ReportsViewModel @Inject constructor(
         } else {
             null
         }
+        val state = _uiState.value
+        val device = state.selectedDevice ?: return
+        val customerId = device.customerId
+        val oemId = device.oemId
+
+        if (customerId.isNullOrBlank() || oemId.isNullOrBlank()) {
+            _uiState.update { it.copy(scheduleDialogMessage = "Customer/OEM not found for this device.") }
+            return
+        }
+
+        val fields = state.scheduleSelectedFields.toList()
+        val fieldsError = if (fields.isEmpty()) "Please select at least one field." else null
+
         _uiState.update {
             it.copy(
                 scheduleFrequencyError = frequencyError,
-                scheduleDialogMessage = if (frequencyError == null) {
-                    "Schedule report save will be wired in the next step."
-                } else {
-                    it.scheduleDialogMessage
-                }
+                scheduleDialogMessage = fieldsError ?: it.scheduleDialogMessage
             )
+        }
+
+        if (frequencyError != null || fieldsError != null) return
+
+        viewModelScope.launch {
+            val result = reportsRepository.createScheduleReport(
+                deviceId = device.id,
+                customerId = customerId,
+                oemId = oemId,
+                email = state.scheduleEmail,
+                subject = state.scheduleSubject,
+                body = state.scheduleBody,
+                schedule = state.scheduleFrequency?.label?.uppercase().orEmpty(),
+                fields = fields
+            )
+
+            if (result.isSuccess) {
+                _uiState.update { it.copy(scheduleDialogMessage = "Your report has been scheduled") }
+                dismissScheduleDialog()
+                refreshReports()
+            } else {
+                _uiState.update {
+                    it.copy(scheduleDialogMessage = result.exceptionOrNull()?.message ?: "Failed to schedule report.")
+                }
+            }
         }
     }
 
@@ -572,8 +733,21 @@ class ReportsViewModel @Inject constructor(
         updateAnalyticsRow(rowId) { it.copy(chartType = type, chartTypeError = null) }
     }
 
-    fun onAnalyticsRowFieldChanged(rowId: String, field: String?) {
-        updateAnalyticsRow(rowId) { it.copy(selectedField = field, fieldError = null) }
+    fun onAnalyticsRowFieldToggled(rowId: String, field: String) {
+        updateAnalyticsRow(rowId) { row ->
+            val current = row.selectedFields.toMutableList()
+            if (field in current) {
+                current.remove(field)
+                row.copy(selectedFields = current, fieldError = null)
+            } else {
+                if (current.size >= 6) {
+                    row.copy(fieldError = "Maximum 6 fields allowed.")
+                } else {
+                    current.add(field)
+                    row.copy(selectedFields = current, fieldError = null)
+                }
+            }
+        }
     }
 
     fun onAnalyticsRowFrequencyChanged(rowId: String, frequency: AnalyticsFrequency?) {
@@ -598,16 +772,125 @@ class ReportsViewModel @Inject constructor(
 
     fun onAnalyticsSaveViewClick() {
         if (validateAnalyticsForm()) {
-            _uiState.update {
-                it.copy(analyticsDialogMessage = "Save view will be wired in the next step.")
+            val state = _uiState.value
+            val device = state.selectedDevice ?: return
+            val customerId = device.customerId
+            val oemId = device.oemId
+            if (customerId.isNullOrBlank() || oemId.isNullOrBlank()) {
+                _uiState.update { it.copy(analyticsDialogMessage = "Customer/OEM not found for this device.") }
+                return
+            }
+
+            val charts = state.analyticsChartRows.mapNotNull { row ->
+                val chartType = row.chartType ?: return@mapNotNull null
+                val fields = row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                val step = row.frequency?.label ?: return@mapNotNull null
+                com.ithing.mobile.domain.model.PdfViewChartConfig(
+                    title = row.title,
+                    chartType = when (chartType) {
+                        AnalyticsChartType.LINE -> "line_chart"
+                        AnalyticsChartType.BAR -> "bar_chart"
+                        AnalyticsChartType.HEAT_MAP -> "heat_map"
+                        AnalyticsChartType.AREA -> "area_chart"
+                    },
+                    fields = fields,
+                    step = step
+                )
+            }
+
+            viewModelScope.launch {
+                val result = reportsRepository.saveAnalyticsView(
+                    deviceId = device.id,
+                    customerId = customerId,
+                    oemId = oemId,
+                    userId = sessionManager.getUserId().orEmpty(),
+                    charts = charts
+                )
+
+                if (result.isSuccess) {
+                    _uiState.update { it.copy(analyticsDialogMessage = "View saved successfully.") }
+                    dismissAnalyticsDialog()
+                } else {
+                    _uiState.update {
+                        it.copy(analyticsDialogMessage = result.exceptionOrNull()?.message ?: "Failed to save view.")
+                    }
+                }
             }
         }
     }
 
     fun onAnalyticsGeneratePdfClick() {
         if (validateAnalyticsForm()) {
-            _uiState.update {
-                it.copy(analyticsDialogMessage = "Generate PDF will be wired after API URL is added.")
+            val state = _uiState.value
+            val device = state.selectedDevice ?: return
+            val start = state.analyticsTimeSpanStart
+            val end = state.analyticsTimeSpanEnd
+            if (start == null || end == null) {
+                _uiState.update { it.copy(analyticsDialogMessage = "Please select a date range.") }
+                return
+            }
+
+            val requests = state.analyticsChartRows.mapNotNull { row ->
+                val fields = row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                val stepMillis = when (row.frequency) {
+                    AnalyticsFrequency.HOUR_1 -> 1L * 60 * 60 * 1000
+                    AnalyticsFrequency.HOUR_2 -> 2L * 60 * 60 * 1000
+                    AnalyticsFrequency.HOUR_3 -> 3L * 60 * 60 * 1000
+                    AnalyticsFrequency.HOUR_5 -> 5L * 60 * 60 * 1000
+                    null -> return@mapNotNull null
+                }
+                com.ithing.mobile.domain.model.ReportDataRequest(
+                    deviceId = device.id,
+                    from = start.toString(),
+                    to = end.toString(),
+                    step = stepMillis,
+                    fields = fields
+                )
+            }
+
+            viewModelScope.launch {
+                _uiState.update { it.copy(analyticsDialogMessage = "Generating PDF...") }
+
+                val result = reportsRepository.requestAnalyticsPdfData(requests)
+                if (result.isFailure) {
+                    _uiState.update {
+                        it.copy(analyticsDialogMessage = result.exceptionOrNull()?.message ?: "Failed to generate PDF.")
+                    }
+                    return@launch
+                }
+
+                val dataSets = result.getOrNull().orEmpty()
+                val chartRows = state.analyticsChartRows
+                val fileResult = withContext(Dispatchers.Default) {
+                    runCatching {
+                        AnalyticsPdfGenerator.generateAndSave(
+                            context = appContext,
+                            deviceId = device.id,
+                            chartRows = chartRows,
+                            dataSets = dataSets,
+                            fromMillis = start,
+                            toMillis = end
+                        )
+                    }
+                }
+
+                if (fileResult.isSuccess) {
+                    val savedFile = fileResult.getOrNull()
+                    _uiState.update {
+                        it.copy(
+                            analyticsDialogMessage = "PDF saved: ${savedFile?.name ?: "report.pdf"}",
+                            savedReportsVersion = it.savedReportsVersion + 1
+                        )
+                    }
+                    dismissAnalyticsDialog()
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            analyticsDialogMessage = fileResult.exceptionOrNull()?.message
+                                ?: "Failed to save PDF."
+                        )
+                    }
+                }
             }
         }
     }
@@ -626,14 +909,20 @@ class ReportsViewModel @Inject constructor(
             page = page,
             pageSize = _uiState.value.pageSize
         )
+        val ownerResult = reportsRepository.getDeviceOwnerDetails(deviceId)
+        val mappingResult = reportsRepository.getDeviceMappingFields(deviceId)
 
         _uiState.update {
             val schedulesPage = schedulesResult.getOrNull()
-            val availableFields = schedulesPage?.schedules
-                ?.flatMap { schedule -> schedule.fields }
-                ?.distinct()
-                ?.ifEmpty { fallbackAnalyticsFields }
-                ?: fallbackAnalyticsFields
+            val availableFields = mappingResult.getOrNull()
+                ?.ifEmpty {
+                    fallbackAnalyticsFields.map { field ->
+                        DeviceMappingFieldOption(value = field, label = field)
+                    }
+                }
+                ?: fallbackAnalyticsFields.map { field ->
+                    DeviceMappingFieldOption(value = field, label = field)
+                }
             it.copy(
                 schedules = schedulesPage?.schedules.orEmpty(),
                 currentPage = schedulesPage?.currentPage ?: it.currentPage,
@@ -641,7 +930,7 @@ class ReportsViewModel @Inject constructor(
                 totalCount = schedulesPage?.totalCount ?: 0,
                 totalPages = schedulesPage?.totalPages ?: 0,
                 availableAnalyticsFields = availableFields,
-                deviceOwnerDetails = null,
+                deviceOwnerDetails = ownerResult.getOrNull(),
                 isLoading = false,
                 isRefreshing = false,
                 errorMessage = schedulesResult.exceptionOrNull()?.message
@@ -779,7 +1068,11 @@ class ReportsViewModel @Inject constructor(
         val validatedRows = state.analyticsChartRows.map { row ->
             row.copy(
                 chartTypeError = if (row.chartType == null) "Chart Type field is required." else null,
-                fieldError = if (row.selectedField.isNullOrBlank()) "Field is required." else null,
+                fieldError = when {
+                    row.selectedFields.isEmpty() -> "Field is required."
+                    row.selectedFields.size > 6 -> "Maximum 6 fields allowed."
+                    else -> null
+                },
                 frequencyError = if (row.frequency == null) "Chart frequency field required." else null
             )
         }

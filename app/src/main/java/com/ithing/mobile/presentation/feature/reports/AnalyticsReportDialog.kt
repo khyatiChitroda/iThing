@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.ithing.mobile.domain.model.DeviceMappingFieldOption
 import com.ithing.mobile.presentation.theme.White
 
 @Composable
@@ -57,7 +59,7 @@ fun AnalyticsReportDialog(
     onCustomDateRangeSelected: (Long, Long) -> Unit,
     onRowTitleChanged: (String, String) -> Unit,
     onRowChartTypeChanged: (String, AnalyticsChartType?) -> Unit,
-    onRowFieldChanged: (String, String?) -> Unit,
+    onRowFieldToggled: (String, String) -> Unit,
     onRowFrequencyChanged: (String, AnalyticsFrequency?) -> Unit,
     onAddMore: () -> Unit,
     onRemoveRow: (String) -> Unit,
@@ -122,7 +124,7 @@ fun AnalyticsReportDialog(
                     )
 
                     Surface(
-                        modifier = Modifier.clickable { showTimeSpanPicker = true },
+                        modifier = Modifier.clickable { showCustomRangeDialog = true },
                         shape = RoundedCornerShape(16.dp),
                         tonalElevation = 0.dp,
                         shadowElevation = 2.dp,
@@ -164,7 +166,7 @@ fun AnalyticsReportDialog(
                             showRemove = uiState.analyticsChartRows.size > 1,
                             onTitleChanged = { onRowTitleChanged(row.id, it) },
                             onChartTypeChanged = { onRowChartTypeChanged(row.id, it) },
-                            onFieldChanged = { onRowFieldChanged(row.id, it) },
+                            onFieldToggled = { onRowFieldToggled(row.id, it) },
                             onFrequencyChanged = { onRowFrequencyChanged(row.id, it) },
                             onRemove = { onRemoveRow(row.id) }
                         )
@@ -231,24 +233,10 @@ fun AnalyticsReportDialog(
         }
     }
 
-    if (showTimeSpanPicker) {
-        AnalyticsReportDatePickerDialog(
-            selectedPreset = uiState.analyticsSelectedPreset,
-            startMillis = uiState.analyticsTimeSpanStart,
-            endMillis = uiState.analyticsTimeSpanEnd,
-            onPresetSelected = onTimeSpanPresetSelected,
-            onCustomClick = {
-                showTimeSpanPicker = false
-                showCustomRangeDialog = true
-            },
-            onDismiss = { showTimeSpanPicker = false }
-        )
-    }
-
-    if (showCustomRangeDialog) {
-        AnalyticsCustomDateRangeDialog(
-            startMillis = uiState.analyticsTimeSpanStart,
-            endMillis = uiState.analyticsTimeSpanEnd,
+            if (showCustomRangeDialog) {
+                AnalyticsCustomDateRangeDialog(
+                    startMillis = uiState.analyticsTimeSpanStart,
+                    endMillis = uiState.analyticsTimeSpanEnd,
             onDismiss = { showCustomRangeDialog = false },
             onConfirm = { start, end ->
                 showCustomRangeDialog = false
@@ -263,11 +251,11 @@ fun AnalyticsReportDialog(
 private fun AnalyticsChartConfigCard(
     row: AnalyticsChartConfigUi,
     compactLayout: Boolean,
-    availableFields: List<String>,
+    availableFields: List<DeviceMappingFieldOption>,
     showRemove: Boolean,
     onTitleChanged: (String) -> Unit,
     onChartTypeChanged: (AnalyticsChartType?) -> Unit,
-    onFieldChanged: (String?) -> Unit,
+    onFieldToggled: (String) -> Unit,
     onFrequencyChanged: (AnalyticsFrequency?) -> Unit,
     onRemove: () -> Unit
 ) {
@@ -310,11 +298,11 @@ private fun AnalyticsChartConfigCard(
                         label = "Choose Fields",
                         error = row.fieldError,
                         content = {
-                            AnalyticsDropdownField(
-                                selectedText = row.selectedField ?: "Select Field",
+                            AnalyticsMultiSelectField(
+                                selected = row.selectedFields,
                                 options = availableFields,
-                                optionLabel = { it },
-                                onSelected = onFieldChanged
+                                placeholder = "Select Fields (max 6)",
+                                onToggle = onFieldToggled
                             )
                         }
                     )
@@ -374,11 +362,11 @@ private fun AnalyticsChartConfigCard(
                             color = Color(0xFF52637E)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        AnalyticsDropdownField(
-                            selectedText = row.selectedField ?: "Select Field",
+                        AnalyticsMultiSelectField(
+                            selected = row.selectedFields,
                             options = availableFields,
-                            optionLabel = { it },
-                            onSelected = onFieldChanged
+                            placeholder = "Select Fields (max 6)",
+                            onToggle = onFieldToggled
                         )
                         row.fieldError?.let { error ->
                             ErrorText(error)
@@ -421,6 +409,71 @@ private fun AnalyticsChartConfigCard(
                         color = Color(0xFFD62828)
                     )
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnalyticsMultiSelectField(
+    selected: List<String>,
+    options: List<DeviceMappingFieldOption>,
+    placeholder: String,
+    onToggle: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val labelByValue = remember(options) { options.associate { it.value to it.label } }
+    val selectedText = if (selected.isEmpty()) {
+        placeholder
+    } else {
+        selected.joinToString(", ") { labelByValue[it] ?: it }.take(48)
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded }
+    ) {
+        OutlinedTextField(
+            value = selectedText,
+            onValueChange = {},
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(
+                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                    enabled = true
+                ),
+            readOnly = true,
+            singleLine = true,
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            }
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                val checked = option.value in selected
+                DropdownMenuItem(
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = null
+                            )
+                            Text(option.label)
+                        }
+                    },
+                    onClick = {
+                        onToggle(option.value)
+                    }
+                )
             }
         }
     }

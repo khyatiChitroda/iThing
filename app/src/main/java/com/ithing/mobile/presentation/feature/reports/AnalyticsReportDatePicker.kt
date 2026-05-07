@@ -15,16 +15,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -115,93 +114,9 @@ fun AnalyticsCustomDateRangeDialog(
     onDismiss: () -> Unit,
     onConfirm: (Long, Long) -> Unit
 ) {
-    var showStartPicker by remember { mutableStateOf(false) }
-    var showEndPicker by remember { mutableStateOf(false) }
-    var draftStart by remember { mutableStateOf(startMillis) }
-    var draftEnd by remember { mutableStateOf(endMillis) }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = White)
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Text(
-                    text = "Custom Range",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF52637E)
-                )
-
-                OutlinedButton(
-                    onClick = { showStartPicker = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Start: ${analyticsDateRangeLabel(draftStart, draftStart).substringBefore(" to ")}")
-                }
-
-                OutlinedButton(
-                    onClick = { showEndPicker = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("End: ${analyticsDateRangeLabel(draftEnd, draftEnd).substringBefore(" to ")}")
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    OutlinedButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
-                    Button(
-                        onClick = {
-                            onConfirm(draftStart ?: startMillis ?: System.currentTimeMillis(), draftEnd ?: endMillis ?: System.currentTimeMillis())
-                        }
-                    ) {
-                        Text("Apply")
-                    }
-                }
-            }
-        }
-    }
-
-    if (showStartPicker) {
-        SingleDatePickerDialog(
-            initialDate = draftStart,
-            onDismiss = { showStartPicker = false },
-            onConfirm = {
-                draftStart = it
-                showStartPicker = false
-            }
-        )
-    }
-
-    if (showEndPicker) {
-        SingleDatePickerDialog(
-            initialDate = draftEnd,
-            onDismiss = { showEndPicker = false },
-            onConfirm = {
-                draftEnd = it
-                showEndPicker = false
-            }
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SingleDatePickerDialog(
-    initialDate: Long?,
-    onDismiss: () -> Unit,
-    onConfirm: (Long) -> Unit
-) {
-    val state = androidx.compose.material3.rememberDatePickerState(
-        initialSelectedDateMillis = initialDate
+    val state = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = startMillis,
+        initialSelectedEndDateMillis = endMillis
     )
 
     DatePickerDialog(
@@ -209,7 +124,11 @@ private fun SingleDatePickerDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    state.selectedDateMillis?.let(onConfirm)
+                    val start = state.selectedStartDateMillis
+                    val end = state.selectedEndDateMillis
+                    if (start != null && end != null) {
+                        onConfirm(start, end)
+                    }
                 }
             ) {
                 Text("Apply")
@@ -221,6 +140,9 @@ private fun SingleDatePickerDialog(
             }
         }
     ) {
-        DatePicker(state = state)
+        DateRangePicker(
+            state = state,
+            showModeToggle = false
+        )
     }
 }

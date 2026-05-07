@@ -27,7 +27,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ithing.mobile.R
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.ui.unit.LayoutDirection
 import com.ithing.mobile.presentation.components.IThingCard
+import com.ithing.mobile.presentation.components.IThingScreenContainer
 import com.ithing.mobile.presentation.theme.DarkText
 import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.Slate600
@@ -49,7 +54,6 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp, vertical = 0.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
             IThingCard(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = 6,

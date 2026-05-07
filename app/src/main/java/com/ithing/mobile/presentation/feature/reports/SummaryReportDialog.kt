@@ -64,7 +64,6 @@ fun SummaryReportDialog(
     onSaveClick: () -> Unit
 ) {
     val bodyScrollState = rememberScrollState()
-    var showPresetPicker by remember { mutableStateOf(false) }
     var showCustomRangeDialog by remember { mutableStateOf(false) }
 
     Dialog(
@@ -152,7 +151,7 @@ fun SummaryReportDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { showPresetPicker = true },
+                                .clickable { showCustomRangeDialog = true },
                             shape = RoundedCornerShape(16.dp),
                             tonalElevation = 0.dp,
                             shadowElevation = 2.dp,
@@ -283,20 +282,6 @@ fun SummaryReportDialog(
                 }
             }
         }
-    }
-
-    if (showPresetPicker) {
-        AnalyticsReportDatePickerDialog(
-            selectedPreset = uiState.summarySelectedPreset,
-            startMillis = uiState.summaryTimeSpanStart,
-            endMillis = uiState.summaryTimeSpanEnd,
-            onPresetSelected = onTimeSpanPresetSelected,
-            onCustomClick = {
-                showPresetPicker = false
-                showCustomRangeDialog = true
-            },
-            onDismiss = { showPresetPicker = false }
-        )
     }
 
     if (showCustomRangeDialog) {
