@@ -5,18 +5,18 @@ import com.ithing.mobile.core.security.HashUtil
 import com.ithing.mobile.core.session.SessionManager
 import com.ithing.mobile.core.session.UserRole
 import com.ithing.mobile.data.local.datastore.AuthDataStore
-import com.ithing.mobile.data.remote.api.AuthApiService
-import com.ithing.mobile.data.remote.dto.changepassword.ChangePasswordRequestDto
-import com.ithing.mobile.data.remote.dto.forgotpassword.ForgotPasswordRequestDto
-import com.ithing.mobile.data.remote.dto.login.LoginRequestDto
 import com.ithing.mobile.domain.repository.AuthRepository
+import com.ithing.mobile.shared.data.remote.datasource.AuthRemoteDataSource
+import com.ithing.mobile.shared.data.remote.dto.auth.ChangePasswordRequestDto
+import com.ithing.mobile.shared.data.remote.dto.auth.ForgotPasswordRequestDto
+import com.ithing.mobile.shared.data.remote.dto.auth.LoginRequestDto
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
-    private val authApiService: AuthApiService,
+    private val authRemoteDataSource: AuthRemoteDataSource,
     private val authDataStore: AuthDataStore,
     private val sessionManager: SessionManager
 ) : AuthRepository {
@@ -26,7 +26,7 @@ class AuthRepositoryImpl @Inject constructor(
     ) {
     val hashedPassword = HashUtil.sha1(password)
 
-    val response = authApiService.loginAttempt(
+    val response = authRemoteDataSource.loginAttempt(
         request = LoginRequestDto(
             id = username,
             password = hashedPassword
@@ -60,7 +60,7 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun forgotPassword(email: String) {
-        val response = authApiService.forgotPassword(
+        val response = authRemoteDataSource.forgotPassword(
             ForgotPasswordRequestDto(id = email)
         )
 
@@ -73,7 +73,7 @@ class AuthRepositoryImpl @Inject constructor(
 
         val hashedPassword = HashUtil.sha1(newPassword)
 
-        val response = authApiService.changePassword(
+        val response = authRemoteDataSource.changePassword(
             ChangePasswordRequestDto(password = hashedPassword)
         )
 

@@ -43,7 +43,7 @@ fun createIThingHttpClient(
         contentType(ContentType.Application.Json)
         tokenProvider.accessToken()
             ?.takeIf { it.isNotBlank() }
-            ?.let { token -> header(HttpHeaders.Authorization, "Bearer $token") }
+            ?.let { token -> header(HttpHeaders.Authorization, token) }
     }
 }
 
