@@ -1,5 +1,6 @@
 package com.ithing.mobile.presentation.feature.reports
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -423,8 +424,8 @@ private fun AnalyticsMultiSelectField(
     onToggle: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-
     val labelByValue = remember(options) { options.associate { it.value to it.label } }
+
     val selectedText = if (selected.isEmpty()) {
         placeholder
     } else {

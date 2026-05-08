@@ -1,6 +1,4 @@
 <resources>
     <string name="app_name">IThing Mobile</string>
 
-    <string name="splash_title">Empowering Businesses with\nSmarter IoT Insights!</string>
-    <string name="splash_subtitle">Device management, data collection, processing and visualization for your IoT solution</string>
 </resources>

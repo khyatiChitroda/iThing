@@ -1,5 +1,6 @@
 package com.ithing.mobile.data.repository
 
+import android.util.Log
 import com.ithing.mobile.data.remote.api.ReportsApi
 import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceMappingRequestDto
@@ -81,7 +82,6 @@ class ReportsRepositoryImpl @Inject constructor(
         val payload = requireNotNull(response.data.data) {
             response.data.message.ifBlank { "Device mapping not found" }
         }
-
         val blocked = setOf("machine id", "industry", "device id")
         payload.mapping.mapNotNull { field ->
             val name = field.registerName.trim()

@@ -90,6 +90,21 @@ class ReportsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
+    // These are ONLY added to Summary and Schedule reports
+    private val WEB_RAW_DATA_FIELDS = listOf(
+        "Comm Type",
+        "Date",
+        "Time",
+        "Lat",
+        "Long",
+        "Device Id",
+        "Industry",
+        "Customer Name",
+        "Machine Id",
+        "Configuration",
+        "Type",
+    )
+
     private val fallbackAnalyticsFields = listOf(
         "Date",
         "Time",
@@ -293,20 +308,35 @@ class ReportsViewModel @Inject constructor(
 
     fun onAnalyticReportClick() {
         val state = _uiState.value
-        if (state.selectedDevice == null) {
+        val selectedDevice = state.selectedDevice
+        if (selectedDevice == null) {
             _uiState.update {
                 it.copy(analyticsDialogMessage = "Select industry, OEM, customer, and device first.")
             }
             return
         }
 
-        val availableFields = state.schedules
-            .flatMap { it.fields }
-            .distinct()
-            .ifEmpty { fallbackAnalyticsFields }
-            .map { DeviceMappingFieldOption(it, it) }
+
 
         if (state.isAnalyticsDialogVisible) return
+        val availableFields = state.availableAnalyticsFields
+        if (availableFields.isEmpty()) {
+            viewModelScope.launch {
+                val mappingResult = reportsRepository.getDeviceMappingFields(selectedDevice.id)
+                mappingResult.onSuccess { fields ->
+
+                    _uiState.update {
+                        it.copy(
+                            isAnalyticsDialogVisible = true,
+                            analyticsDialogMessage = null,
+                            availableAnalyticsFields = fields
+                        )
+                    }
+                }
+
+            }
+            return
+        }
 
         _uiState.update {
             it.copy(
@@ -342,7 +372,10 @@ class ReportsViewModel @Inject constructor(
                     summaryBody = "Report is attached. Please download the attachment. Thank you.",
                     summaryTimeSpanStart = defaultRange.first,
                     summaryTimeSpanEnd = defaultRange.second,
-                    summaryTimeSpanLabel = analyticsDateRangeLabel(defaultRange.first, defaultRange.second),
+                    summaryTimeSpanLabel = analyticsDateRangeLabel(
+                        defaultRange.first,
+                        defaultRange.second
+                    ),
                     summaryTimeSpanError = null,
                     summarySelectedPreset = AnalyticsDatePreset.TODAY,
                     summarySelectedFields = emptySet(),
@@ -351,12 +384,18 @@ class ReportsViewModel @Inject constructor(
             }
 
             val mappingResult = reportsRepository.getDeviceMappingFields(selectedDevice.id)
-            _uiState.update {
-                it.copy(
-                    availableSummaryFields = mappingResult.getOrDefault(emptyList()).map { option -> option.value },
-                    isSummaryFieldsLoading = false,
-                    summaryDialogMessage = mappingResult.exceptionOrNull()?.message
-                )
+            mappingResult.onSuccess { apiFields ->
+
+                val finalSummaryFields = WEB_RAW_DATA_FIELDS + apiFields.map { it.label }
+
+                _uiState.update {
+                    it.copy(
+                        isSummaryDialogVisible = true,
+                        isSummaryFieldsLoading = false,
+                        availableSummaryFields = finalSummaryFields, // Merged list
+                        summaryDialogMessage = mappingResult.exceptionOrNull()?.message
+                    )
+                }
             }
         }
     }
@@ -389,12 +428,17 @@ class ReportsViewModel @Inject constructor(
             }
 
             val mappingResult = reportsRepository.getDeviceMappingFields(selectedDevice.id)
-            _uiState.update {
-                it.copy(
-                    availableScheduleFields = mappingResult.getOrDefault(emptyList()).map { option -> option.value },
-                    isScheduleFieldsLoading = false,
-                    scheduleDialogMessage = mappingResult.exceptionOrNull()?.message
-                )
+
+            mappingResult.onSuccess { apiFields ->
+                val finalSummaryFields = WEB_RAW_DATA_FIELDS + apiFields.map { it.label }
+                _uiState.update {
+                    it.copy(
+                        isScheduleDialogVisible = true,
+                        isScheduleFieldsLoading = false,
+                        availableScheduleFields = finalSummaryFields,  // Merged list
+                        scheduleDialogMessage = mappingResult.exceptionOrNull()?.message
+                    )
+                }
             }
         }
     }
@@ -571,7 +615,10 @@ class ReportsViewModel @Inject constructor(
                 refreshReports()
             } else {
                 _uiState.update {
-                    it.copy(summaryDialogMessage = result.exceptionOrNull()?.message ?: "Failed to generate report.")
+                    it.copy(
+                        summaryDialogMessage = result.exceptionOrNull()?.message
+                            ?: "Failed to generate report."
+                    )
                 }
             }
         }
@@ -677,7 +724,10 @@ class ReportsViewModel @Inject constructor(
                 refreshReports()
             } else {
                 _uiState.update {
-                    it.copy(scheduleDialogMessage = result.exceptionOrNull()?.message ?: "Failed to schedule report.")
+                    it.copy(
+                        scheduleDialogMessage = result.exceptionOrNull()?.message
+                            ?: "Failed to schedule report."
+                    )
                 }
             }
         }
@@ -716,7 +766,11 @@ class ReportsViewModel @Inject constructor(
                 analyticsTimeSpanStart = normalizedStart,
                 analyticsTimeSpanEnd = normalizedEnd,
                 analyticsTimeSpanLabel = analyticsDateRangeLabel(normalizedStart, normalizedEnd),
-                analyticsTimeSpanError = if (analyticsIsRangeWithin15Days(normalizedStart, normalizedEnd)) {
+                analyticsTimeSpanError = if (analyticsIsRangeWithin15Days(
+                        normalizedStart,
+                        normalizedEnd
+                    )
+                ) {
                     null
                 } else {
                     "Date range cannot exceed 15 days."
@@ -812,7 +866,10 @@ class ReportsViewModel @Inject constructor(
                     dismissAnalyticsDialog()
                 } else {
                     _uiState.update {
-                        it.copy(analyticsDialogMessage = result.exceptionOrNull()?.message ?: "Failed to save view.")
+                        it.copy(
+                            analyticsDialogMessage = result.exceptionOrNull()?.message
+                                ?: "Failed to save view."
+                        )
                     }
                 }
             }
@@ -854,7 +911,10 @@ class ReportsViewModel @Inject constructor(
                 val result = reportsRepository.requestAnalyticsPdfData(requests)
                 if (result.isFailure) {
                     _uiState.update {
-                        it.copy(analyticsDialogMessage = result.exceptionOrNull()?.message ?: "Failed to generate PDF.")
+                        it.copy(
+                            analyticsDialogMessage = result.exceptionOrNull()?.message
+                                ?: "Failed to generate PDF."
+                        )
                     }
                     return@launch
                 }
@@ -946,15 +1006,18 @@ class ReportsViewModel @Inject constructor(
         } ?: allOems
 
         val filteredCustomers = allCustomers.filter { customer ->
-            val matchesIndustry = state.selectedIndustry?.name?.let { customer.industry == it } ?: true
+            val matchesIndustry =
+                state.selectedIndustry?.name?.let { customer.industry == it } ?: true
             val matchesOem = state.selectedOem?.id?.let { customer.oemId == it } ?: true
             matchesIndustry && matchesOem
         }
 
         val filteredDevices = allDevices.filter { device ->
-            val matchesIndustry = state.selectedIndustry?.name?.let { device.industry == it } ?: true
+            val matchesIndustry =
+                state.selectedIndustry?.name?.let { device.industry == it } ?: true
             val matchesOem = state.selectedOem?.id?.let { device.oemId == it } ?: true
-            val matchesCustomer = state.selectedCustomer?.id?.let { device.customerId == it } ?: true
+            val matchesCustomer =
+                state.selectedCustomer?.id?.let { device.customerId == it } ?: true
             matchesIndustry && matchesOem && matchesCustomer
         }
 
@@ -977,7 +1040,10 @@ class ReportsViewModel @Inject constructor(
                 analyticsDialogMessage = null,
                 analyticsTimeSpanStart = defaultRange.first,
                 analyticsTimeSpanEnd = defaultRange.second,
-                analyticsTimeSpanLabel = analyticsDateRangeLabel(defaultRange.first, defaultRange.second),
+                analyticsTimeSpanLabel = analyticsDateRangeLabel(
+                    defaultRange.first,
+                    defaultRange.second
+                ),
                 analyticsTimeSpanError = null,
                 analyticsSelectedPreset = AnalyticsDatePreset.TODAY,
                 analyticsChartRows = listOf(AnalyticsChartConfigUi())
@@ -998,7 +1064,10 @@ class ReportsViewModel @Inject constructor(
                 summaryBody = "Report is attached. Please download the attachment. Thank you.",
                 summaryTimeSpanStart = defaultRange.first,
                 summaryTimeSpanEnd = defaultRange.second,
-                summaryTimeSpanLabel = analyticsDateRangeLabel(defaultRange.first, defaultRange.second),
+                summaryTimeSpanLabel = analyticsDateRangeLabel(
+                    defaultRange.first,
+                    defaultRange.second
+                ),
                 summaryTimeSpanError = null,
                 summarySelectedPreset = AnalyticsDatePreset.TODAY,
                 summarySelectedFields = emptySet(),
@@ -1059,11 +1128,12 @@ class ReportsViewModel @Inject constructor(
         val state = _uiState.value
         val start = state.analyticsTimeSpanStart
         val end = state.analyticsTimeSpanEnd
-        val timeSpanError = if (start == null || end == null || !analyticsIsRangeWithin15Days(start, end)) {
-            "Date range cannot exceed 15 days."
-        } else {
-            null
-        }
+        val timeSpanError =
+            if (start == null || end == null || !analyticsIsRangeWithin15Days(start, end)) {
+                "Date range cannot exceed 15 days."
+            } else {
+                null
+            }
 
         val validatedRows = state.analyticsChartRows.map { row ->
             row.copy(
