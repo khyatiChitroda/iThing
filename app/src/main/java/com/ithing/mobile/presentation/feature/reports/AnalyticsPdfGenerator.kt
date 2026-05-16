@@ -1,13 +1,20 @@
 package com.ithing.mobile.presentation.feature.reports
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
+import com.ithing.mobile.R
+import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -21,7 +28,12 @@ internal object AnalyticsPdfGenerator {
         chartRows: List<AnalyticsChartConfigUi>,
         dataSets: List<List<Map<String, String>>>,
         fromMillis: Long,
-        toMillis: Long
+        toMillis: Long,
+        customerName: String,
+        machineName: String?,
+        oemLogoUrl: String?,
+        fromLabel: String,
+        toLabel: String
     ): File {
         val reportsDir = context.getExternalFilesDir("reports") ?: File(context.filesDir, "reports")
         if (!reportsDir.exists()) {
@@ -29,7 +41,7 @@ internal object AnalyticsPdfGenerator {
         }
 
         val now = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
-        val file = File(reportsDir, "${deviceId}_analytic_${now}.pdf")
+        val file = File(reportsDir, "${deviceId}_summary_${now}.pdf")
 
         val document = PdfDocument()
         try {
@@ -80,14 +92,42 @@ internal object AnalyticsPdfGenerator {
             }
 
             val margin = 36f
-            val chartLeft = margin
-            val chartRight = pageWidth - margin
-            val chartTop = 170f
-            val chartBottom = pageHeight - 260f
-            val tableTop = chartBottom + 74f
+            val contentLeft = margin
+            val contentRight = pageWidth - margin
 
-            val fromLabel = Date(fromMillis).toString()
-            val toLabel = Date(toMillis).toString()
+            val sectionGap = 12f
+            val sectionTitleH = 22f
+            val chartH = 260f
+            val tableGap = 18f
+            val tableH = 140f
+            val sectionH = sectionTitleH + chartH + tableGap + tableH
+
+            var pageNumber = 1
+            var page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+            var canvas = page.canvas
+
+            var currentY = drawWebHeader(
+                canvas = canvas,
+                context = context,
+                pageWidth = pageWidth.toFloat(),
+                margin = margin,
+                customerName = customerName,
+                machineName = machineName,
+                deviceId = deviceId,
+                fromLabel = fromLabel,
+                toLabel = toLabel,
+                oemLogoUrl = oemLogoUrl,
+                titlePaint = titlePaint,
+                metaPaint = metaPaint
+            ) + 10f
+
+            fun startNewPage() {
+                document.finishPage(page)
+                pageNumber += 1
+                page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+                canvas = page.canvas
+                currentY = margin
+            }
 
             chartRows.forEachIndexed { index, row ->
                 val data = dataSets.getOrNull(index).orEmpty()
@@ -99,15 +139,24 @@ internal object AnalyticsPdfGenerator {
                     data.mapNotNull { it[fieldName]?.toDoubleOrNull() }
                 }
 
-                val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, index + 1).create()
-                val page = document.startPage(pageInfo)
-                val canvas = page.canvas
+                if (currentY + sectionH > pageHeight - margin) {
+                    // Match web: create a new page on overflow; header remains only on page 1.
+                    startNewPage()
+                }
 
-                canvas.drawText(row.title.ifBlank { "Analytic Report" }, margin, 52f, titlePaint)
-                canvas.drawText("Device: $deviceId", margin, 78f, metaPaint)
-                canvas.drawText("Range: $fromLabel  →  $toLabel", margin, 96f, metaPaint)
-                canvas.drawText("Field: ${fields.joinToString(", ").ifBlank { "-" }}", margin, 114f, metaPaint)
-                canvas.drawText("Chart: ${chartType?.label ?: "-"}", margin, 132f, metaPaint)
+                val chartLeft = contentLeft
+                val chartRight = contentRight
+
+                val sectionTitlePaint = Paint(titlePaint).apply {
+                    textSize = 14f
+                    isFakeBoldText = true
+                    textAlign = Paint.Align.LEFT
+                }
+                canvas.drawText(row.title.ifBlank { "Analytic Report" }, chartLeft, currentY + 16f, sectionTitlePaint)
+
+                val chartTop = currentY + sectionTitleH
+                val chartBottom = chartTop + chartH
+                val tableTop = chartBottom + tableGap
 
                 // Chart frame
                 canvas.drawRect(chartLeft, chartTop, chartRight, chartBottom, axisPaint)
@@ -277,9 +326,10 @@ internal object AnalyticsPdfGenerator {
                     )
                 }
 
-                document.finishPage(page)
+                currentY += sectionH + sectionGap
             }
 
+            document.finishPage(page)
             FileOutputStream(file).use { output ->
                 document.writeTo(output)
             }
@@ -287,6 +337,107 @@ internal object AnalyticsPdfGenerator {
         } finally {
             document.close()
         }
+    }
+
+    private fun drawWebHeader(
+        canvas: Canvas,
+        context: Context,
+        pageWidth: Float,
+        margin: Float,
+        customerName: String,
+        machineName: String?,
+        deviceId: String,
+        fromLabel: String,
+        toLabel: String,
+        oemLogoUrl: String?,
+        titlePaint: Paint,
+        metaPaint: Paint
+    ): Float {
+        val logoTop = margin
+        val ithingBitmap = runCatching {
+            BitmapFactory.decodeResource(context.resources, R.drawable.ithing_logo)
+        }.getOrNull()
+
+        var bottomY = logoTop
+        ithingBitmap?.let { bmp ->
+            val scaled = scaleToHeight(bmp, 34f)
+            val dst = RectF(margin, logoTop, margin + scaled.width, logoTop + scaled.height)
+            canvas.drawBitmap(scaled, null, dst, null)
+            bottomY = maxOf(bottomY, dst.bottom)
+        }
+
+        val oemBitmap = oemLogoUrl?.let { fetchBitmap(it) }
+        oemBitmap?.let { bmp ->
+            val scaled = scaleToHeight(bmp, 26f)
+            val left = pageWidth - margin - scaled.width
+            val dst = RectF(left, logoTop + 4f, left + scaled.width, logoTop + 4f + scaled.height)
+            canvas.drawBitmap(scaled, null, dst, null)
+            bottomY = maxOf(bottomY, dst.bottom)
+        }
+
+        val boldPaint = Paint(metaPaint).apply {
+            color = Color.rgb(31, 41, 55)
+            textSize = 11.5f
+            isFakeBoldText = true
+        }
+        val valuePaint = Paint(metaPaint).apply {
+            color = Color.rgb(31, 41, 55)
+            textSize = 11.5f
+        }
+
+        val metaTop = bottomY + 18f
+        val leftX = margin
+        val rightX = pageWidth * 0.58f
+        val lineH = 16f
+
+        canvas.drawText("Customer:", leftX, metaTop, boldPaint)
+        canvas.drawText(customerName.ifBlank { "-" }, leftX + 74f, metaTop, valuePaint)
+
+        canvas.drawText("Machine:", leftX, metaTop + lineH, boldPaint)
+        canvas.drawText(machineName ?: "-", leftX + 74f, metaTop + lineH, valuePaint)
+
+        canvas.drawText("Device:", leftX, metaTop + 2 * lineH, boldPaint)
+        canvas.drawText(deviceId, leftX + 74f, metaTop + 2 * lineH, valuePaint)
+
+        canvas.drawText("From:", rightX, metaTop, boldPaint)
+        canvas.drawText(fromLabel, rightX + 48f, metaTop, valuePaint)
+
+        canvas.drawText("To:", rightX, metaTop + lineH, boldPaint)
+        canvas.drawText(toLabel, rightX + 48f, metaTop + lineH, valuePaint)
+
+        val centeredTitlePaint = Paint(titlePaint).apply {
+            textAlign = Paint.Align.CENTER
+            textSize = 18f
+            isFakeBoldText = true
+            color = Color.BLACK
+        }
+        val titleY = metaTop + 3.6f * lineH
+        canvas.drawText("Performance Report", pageWidth / 2f, titleY, centeredTitlePaint)
+        return titleY + 18f
+    }
+
+    private fun scaleToHeight(bitmap: Bitmap, targetHeight: Float): Bitmap {
+        if (bitmap.height <= 0) return bitmap
+        val scale = targetHeight / bitmap.height.toFloat()
+        val targetW = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val targetH = targetHeight.toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(bitmap, targetW, targetH, true)
+    }
+
+    private fun fetchBitmap(urlString: String): Bitmap? {
+        return runCatching {
+            val url = URL(urlString)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3500
+                readTimeout = 3500
+                instanceFollowRedirects = true
+            }
+            conn.connect()
+            if (conn.responseCode !in 200..299) return@runCatching null
+            BufferedInputStream(conn.inputStream).use { stream ->
+                BitmapFactory.decodeStream(stream)
+            }
+        }.getOrNull()
     }
 
     private fun drawHeatMapFallback(

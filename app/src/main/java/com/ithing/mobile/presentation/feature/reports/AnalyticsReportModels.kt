@@ -1,10 +1,15 @@
 package com.ithing.mobile.presentation.feature.reports
 
+import androidx.activity.result.launch
+import androidx.compose.animation.core.copy
+import androidx.lifecycle.map
+import androidx.lifecycle.viewModelScope
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import kotlin.concurrent.atomics.update
 
 enum class AnalyticsChartType(val label: String) {
     LINE("Line Chart"),
@@ -40,7 +45,7 @@ enum class AnalyticsDatePreset(val label: String) {
 
 data class AnalyticsChartConfigUi(
     val id: String = UUID.randomUUID().toString(),
-    val title: String = "",
+    val title: String = "Analytic Report",
     val chartType: AnalyticsChartType? = null,
     val selectedFields: List<String> = emptyList(),
     val frequency: AnalyticsFrequency? = null,
@@ -113,7 +118,8 @@ fun analyticsIsRangeWithin15Days(startMillis: Long, endMillis: Long): Boolean {
     if (startMillis > endMillis) return false
     val millisInDay = 24L * 60 * 60 * 1000
     val inclusiveDays = ((endMillis - startMillis) / millisInDay) + 1
-    return inclusiveDays <= 15
+    // Web app allows up to 45 days for analytics reports.
+    return inclusiveDays <= 45
 }
 
 fun analyticsNormalizeStartOfDay(millis: Long): Long {
