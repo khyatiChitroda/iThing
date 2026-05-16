@@ -1,6 +1,7 @@
 package com.ithing.mobile.presentation.feature.reports
 
 import android.app.DownloadManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -38,6 +39,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -69,6 +71,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -82,8 +85,10 @@ import com.ithing.mobile.presentation.theme.LightGrayBg
 import com.ithing.mobile.presentation.theme.MutedText
 import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.White
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 private data class ReportTypeCardModel(
@@ -143,6 +148,9 @@ fun ReportsRoute(
         onDismissAnalyticsMessage = viewModel::dismissAnalyticsMessage,
         onDismissExceptionMessage = viewModel::dismissExceptionMessage,
         onExceptionDownloadHandled = viewModel::onExceptionDownloadHandled,
+        onExceptionDownloadEnqueued = viewModel::onExceptionDownloadEnqueued,
+        onExceptionDownloadCompleted = viewModel::onExceptionDownloadCompleted,
+        onConsumeDownloadUrl = viewModel::consumeDownloadUrl,
         onAnalyticsTimeSpanPresetSelected = viewModel::onAnalyticsTimeSpanPresetSelected,
         onAnalyticsCustomDateRangeSelected = viewModel::onAnalyticsCustomDateRangeSelected,
         onAnalyticsRowTitleChanged = viewModel::onAnalyticsRowTitleChanged,
@@ -195,6 +203,9 @@ private fun ReportsScreen(
     onDismissAnalyticsMessage: () -> Unit,
     onDismissExceptionMessage: () -> Unit,
     onExceptionDownloadHandled: () -> Unit,
+    onExceptionDownloadEnqueued: (Long) -> Unit,
+    onExceptionDownloadCompleted: () -> Unit,
+    onConsumeDownloadUrl: () -> Unit,
     onAnalyticsTimeSpanPresetSelected: (AnalyticsDatePreset) -> Unit,
     onAnalyticsCustomDateRangeSelected: (Long, Long) -> Unit,
     onAnalyticsRowTitleChanged: (String, String) -> Unit,
@@ -250,6 +261,37 @@ private fun ReportsScreen(
             .fillMaxSize()
             .background(LightGrayBg)
     ) {
+        uiState.exceptionDownloadId?.let { downloadId ->
+            LaunchedEffect(downloadId) {
+                val downloadManager =
+                    context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+
+                while (true) {
+                    val status = withContext(Dispatchers.IO) {
+                        val query = DownloadManager.Query().setFilterById(downloadId)
+                        val cursor = downloadManager.query(query)
+                        cursor.use {
+                            if (it == null || !it.moveToFirst()) return@withContext null
+                            val idx = it.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                            if (idx < 0) return@withContext null
+                            it.getInt(idx)
+                        }
+                    }
+
+                    when (status) {
+                        DownloadManager.STATUS_SUCCESSFUL,
+                        DownloadManager.STATUS_FAILED,
+                        null -> {
+                            onExceptionDownloadCompleted()
+                            break
+                        }
+                    }
+
+                    delay(500)
+                }
+            }
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -298,6 +340,14 @@ private fun ReportsScreen(
                     onPageChange = onPageChange
                 )
             }
+        }
+
+        if (uiState.isExceptionDownloading || uiState.isAnalyticsGenerating) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+            )
         }
 
         selectedFields?.let { fields ->
@@ -391,8 +441,15 @@ private fun ReportsScreen(
 
         uiState.exceptionDownloadUrl?.let { url ->
             LaunchedEffect(url) {
-                enqueueXlsxDownload(context, url)
-                onExceptionDownloadHandled()
+                val downloadId = enqueueXlsxDownload(context, url)
+                onExceptionDownloadEnqueued(downloadId)
+            }
+        }
+
+        uiState.downloadUrl?.let { url ->
+            LaunchedEffect(url) {
+                enqueueReportDownload(context, url)
+                onConsumeDownloadUrl()
             }
         }
     }
@@ -872,7 +929,7 @@ private fun ReportsTableContainer(
 private fun enqueueXlsxDownload(
     context: Context,
     url: String
-) {
+): Long {
     val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     val uri = Uri.parse(url)
 
@@ -888,6 +945,41 @@ private fun enqueueXlsxDownload(
 
     request.setDestinationInExternalFilesDir(context, null, "reports/$fileName")
 
+    return downloadManager.enqueue(request)
+}
+
+private fun enqueueReportDownload(
+    context: Context,
+    url: String
+) {
+    // Web behavior: open the URL directly so the user immediately sees "something happening".
+    runCatching {
+        val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(viewIntent)
+    }
+
+    val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    val uri = Uri.parse(url)
+
+    val fileName = uri.lastPathSegment
+        ?.substringAfterLast('/')
+        ?.takeIf { it.isNotBlank() }
+        ?: "report.pdf"
+
+    val ext = fileName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+    val mime = when (ext) {
+        "pdf" -> "application/pdf"
+        "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else -> "*/*"
+    }
+
+    val request = DownloadManager.Request(uri)
+        .setTitle(fileName)
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setMimeType(mime)
+
+    request.setDestinationInExternalFilesDir(context, null, "reports/$fileName")
     downloadManager.enqueue(request)
 }
 
@@ -901,11 +993,13 @@ private fun SavedReportsSection(
 
     fun loadFiles() {
         scope.launch {
-            val dir = context.getExternalFilesDir("reports") ?: File(context.filesDir, "reports")
-            files = dir.listFiles()
-                ?.filter { it.isFile && (it.extension.equals("pdf", true) || it.extension.equals("xlsx", true)) }
-                ?.sortedByDescending { it.lastModified() }
-                .orEmpty()
+            files = withContext(Dispatchers.IO) {
+                val dir = context.getExternalFilesDir("reports") ?: File(context.filesDir, "reports")
+                dir.listFiles()
+                    ?.filter { it.isFile && (it.extension.equals("pdf", true) || it.extension.equals("xlsx", true)) }
+                    ?.sortedByDescending { it.lastModified() }
+                    .orEmpty()
+            }
         }
     }
 
@@ -940,7 +1034,10 @@ private fun SavedReportsSection(
                 }
             }
 
-            if (files.isEmpty()) {
+            val pdfFiles = files.filter { it.extension.equals("pdf", true) }
+            val xlsxFiles = files.filter { it.extension.equals("xlsx", true) }
+
+            if (pdfFiles.isEmpty() && xlsxFiles.isEmpty()) {
                 Text(
                     text = "No saved reports yet. Generate an Analytic Report or export an Exception Report.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -951,15 +1048,44 @@ private fun SavedReportsSection(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                files.take(6).forEach { file ->
-                    SavedReportRow(
-                        file = file,
-                        onOpen = { openReportFile(context, file) },
-                        onDelete = {
-                            file.delete()
-                            loadFiles()
-                        }
+                if (pdfFiles.isNotEmpty()) {
+                    Text(
+                        text = "Analytics Reports",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF233A69),
+                        modifier = Modifier.padding(top = 4.dp)
                     )
+                    pdfFiles.take(6).forEach { file ->
+                        SavedReportRow(
+                            file = file,
+                            onOpen = { openReportFile(context, file) },
+                            onDelete = {
+                                file.delete()
+                                loadFiles()
+                            }
+                        )
+                    }
+                }
+
+                if (xlsxFiles.isNotEmpty()) {
+                    Text(
+                        text = "Excel Reports",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF233A69),
+                        modifier = Modifier.padding(top = 10.dp)
+                    )
+                    xlsxFiles.take(6).forEach { file ->
+                        SavedReportRow(
+                            file = file,
+                            onOpen = { openReportFile(context, file) },
+                            onDelete = {
+                                file.delete()
+                                loadFiles()
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1041,7 +1167,15 @@ private fun openReportFile(
         .setDataAndType(uri, mime)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
-    context.startActivity(intent)
+    try {
+        context.startActivity(Intent.createChooser(intent, "Open with"))
+    } catch (_: ActivityNotFoundException) {
+        android.widget.Toast.makeText(
+            context,
+            "No app found to open this file. Install an Excel/PDF viewer (e.g., Google Sheets/Microsoft Excel).",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+    }
 }
 
 @Composable

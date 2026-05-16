@@ -6,7 +6,9 @@ import com.ithing.mobile.data.remote.dto.reports.DeviceMappingResponseDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceOwnerDetailsRequestDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceOwnerDetailsResponseDto
 import com.ithing.mobile.data.remote.dto.reports.ApiResponseDto
-import com.ithing.mobile.data.remote.dto.reports.AlarmNotificationExportResponseDto
+import com.ithing.mobile.data.remote.dto.reports.AlarmNotificationExportEnvelopeDto
+import com.ithing.mobile.data.remote.dto.reports.AnalyticsPdfReportRequestDto
+import com.ithing.mobile.data.remote.dto.reports.AnalyticsPdfReportResponseDto
 import com.ithing.mobile.data.remote.dto.reports.GenerateExcelPayloadDto
 import com.ithing.mobile.data.remote.dto.reports.PdfReportConfigRequestDto
 import com.ithing.mobile.data.remote.dto.reports.ReportScheduleDeleteRequestDto
@@ -61,8 +63,13 @@ interface ReportsApi {
         @Body request: List<ReportGetDataRequestDto>
     ): ApiResponseDto<JsonElement>
 
+    @POST("pdf/analytics-report")
+    suspend fun generateAnalyticsPdf(
+        @Body request: AnalyticsPdfReportRequestDto
+    ): ApiResponseDto<AnalyticsPdfReportResponseDto>
+
     @GET
     suspend fun exportAlarmNotifications(
         @Url url: String
-    ): AlarmNotificationExportResponseDto
+    ): AlarmNotificationExportEnvelopeDto
 }

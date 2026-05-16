@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.DropdownMenu
@@ -37,6 +38,7 @@ import com.ithing.mobile.presentation.theme.White
 @Composable
 fun AppTopBar(
     sessionManager: SessionManager,
+    onBack: (() -> Unit)? = null,
     onChangePassword: () -> Unit,
     onHelpClick: () -> Unit,
     onLogout: () -> Unit,
@@ -45,6 +47,16 @@ fun AppTopBar(
     var profileMenuExpanded by remember { mutableStateOf(false) }
 
     TopAppBar(
+        navigationIcon = {
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back"
+                    )
+                }
+            }
+        },
         title = {
             Image(
                 painter = painterResource(id = R.drawable.ithing_logo),

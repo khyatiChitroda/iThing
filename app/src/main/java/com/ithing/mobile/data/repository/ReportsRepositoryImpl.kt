@@ -1,8 +1,9 @@
 package com.ithing.mobile.data.repository
 
-import android.util.Log
 import com.ithing.mobile.data.remote.api.ReportsApi
 import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
+import com.ithing.mobile.data.remote.dto.reports.AnalyticsPdfChartConfigDto
+import com.ithing.mobile.data.remote.dto.reports.AnalyticsPdfReportRequestDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceMappingRequestDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceOwnerDetailsRequestDto
 import com.ithing.mobile.data.remote.dto.reports.PdfChartConfigDto
@@ -10,12 +11,12 @@ import com.ithing.mobile.data.remote.dto.reports.PdfReportConfigRequestDto
 import com.ithing.mobile.data.remote.dto.reports.ReportCreateRequestDto
 import com.ithing.mobile.data.remote.dto.reports.ReportGetDataRequestDto
 import com.ithing.mobile.data.remote.dto.reports.ReportScheduleDto
-import com.ithing.mobile.domain.model.DeviceOwnerDetails
 import com.ithing.mobile.domain.model.DeviceMappingFieldOption
+import com.ithing.mobile.domain.model.DeviceOwnerDetails
 import com.ithing.mobile.domain.model.PdfViewChartConfig
+import com.ithing.mobile.domain.model.ReportDataRequest
 import com.ithing.mobile.domain.model.ReportSchedule
 import com.ithing.mobile.domain.model.ReportSchedulePage
-import com.ithing.mobile.domain.model.ReportDataRequest
 import com.ithing.mobile.domain.repository.ReportsRepository
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -60,38 +61,41 @@ class ReportsRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun getDeviceOwnerDetails(deviceId: String): Result<DeviceOwnerDetails> = runCatching {
-        val response = reportsApi.getDeviceOwnerDetails(DeviceOwnerDetailsRequestDto(id = deviceId))
-        val payload = requireNotNull(response.data.data) {
-            response.data.message.ifBlank { "Device owner details not found" }
+    override suspend fun getDeviceOwnerDetails(deviceId: String): Result<DeviceOwnerDetails> =
+        runCatching {
+            val response =
+                reportsApi.getDeviceOwnerDetails(DeviceOwnerDetailsRequestDto(id = deviceId))
+            val payload = requireNotNull(response.data.data) {
+                response.data.message.ifBlank { "Device owner details not found" }
+            }
+
+            DeviceOwnerDetails(
+                deviceId = payload.device.id,
+                deviceName = payload.device.name,
+                machineName = payload.device.machine,
+                customerId = payload.customer.id,
+                customerName = payload.customer.name,
+                oemId = payload.oem.id,
+                oemName = payload.oem.name
+            )
         }
 
-        DeviceOwnerDetails(
-            deviceId = payload.device.id,
-            deviceName = payload.device.name,
-            machineName = payload.device.machine,
-            customerId = payload.customer.id,
-            customerName = payload.customer.name,
-            oemId = payload.oem.id,
-            oemName = payload.oem.name
-        )
-    }
-
-    override suspend fun getDeviceMappingFields(deviceId: String): Result<List<DeviceMappingFieldOption>> = runCatching {
-        val response = reportsApi.getDeviceMapping(DeviceMappingRequestDto(id = deviceId))
-        val payload = requireNotNull(response.data.data) {
-            response.data.message.ifBlank { "Device mapping not found" }
+    override suspend fun getDeviceMappingFields(deviceId: String): Result<List<DeviceMappingFieldOption>> =
+        runCatching {
+            val response = reportsApi.getDeviceMapping(DeviceMappingRequestDto(id = deviceId))
+            val payload = requireNotNull(response.data.data) {
+                response.data.message.ifBlank { "Device mapping not found" }
+            }
+            val blocked = setOf("machine id", "industry", "device id")
+            payload.mapping.mapNotNull { field ->
+                val name = field.registerName.trim()
+                if (name.isBlank()) return@mapNotNull null
+                if (name.lowercase() in blocked) return@mapNotNull null
+                val slaveId = field.slaveId?.trim().orEmpty()
+                val label = if (slaveId.isBlank()) name else "$name ($slaveId)"
+                DeviceMappingFieldOption(value = name, label = label)
+            }.distinctBy { it.value }
         }
-        val blocked = setOf("machine id", "industry", "device id")
-        payload.mapping.mapNotNull { field ->
-            val name = field.registerName.trim()
-            if (name.isBlank()) return@mapNotNull null
-            if (name.lowercase() in blocked) return@mapNotNull null
-            val slaveId = field.slaveId?.trim().orEmpty()
-            val label = if (slaveId.isBlank()) name else "$name ($slaveId)"
-            DeviceMappingFieldOption(value = name, label = label)
-        }.distinctBy { it.value }
-    }
 
     private fun ReportScheduleDto.toDomain() = ReportSchedule(
         id = id,
@@ -224,13 +228,52 @@ class ReportsRepositoryImpl @Inject constructor(
 
         val payload = response.data.data
         require(response.data.success) { response.data.message.ifBlank { "Failed to fetch report data." } }
-        val root = requireNotNull(payload) { response.data.message.ifBlank { "Report data not found" } }
+        val root =
+            requireNotNull(payload) { response.data.message.ifBlank { "Report data not found" } }
         parseReportData(root)
+    }
+
+    override suspend fun generateAnalyticsPdfUrl(
+        deviceId: String,
+        customerName: String,
+        machineName: String?,
+        oemLogoUrl: String?,
+        fromTimestamp: Long,
+        toTimestamp: Long,
+        fromLabel: String,
+        toLabel: String,
+        charts: List<PdfViewChartConfig>
+    ): Result<String?> = runCatching {
+        val response = reportsApi.generateAnalyticsPdf(
+            AnalyticsPdfReportRequestDto(
+                deviceId = deviceId,
+                customerName = customerName,
+                machineName = machineName,
+                oemLogoUrl = oemLogoUrl,
+                fromTimestamp = fromTimestamp,
+                toTimestamp = toTimestamp,
+                fromLabel = fromLabel,
+                toLabel = toLabel,
+                charts = charts.map {
+                    AnalyticsPdfChartConfigDto(
+                        title = it.title,
+                        chartType = it.chartType,
+                        fields = it.fields,
+                        stepMs = it.step.toLongOrNull() ?: 0L
+                    )
+                }
+            )
+        )
+
+        require(response.data.success) { response.data.message.ifBlank { "Failed to generate analytics PDF." } }
+        response.data.data?.url
     }
 
     override suspend fun exportExceptionReportUrl(): Result<String> = runCatching {
         val response = reportsApi.exportAlarmNotifications(ALARM_NOTIFICATION_EXPORT_URL)
-        requireNotNull(response.url) { "Export URL not found" }
+        val url = response.data?.url
+        require(!url.isNullOrBlank()) { "Export URL not found" }
+        url
     }
 
     private fun parseReportData(element: JsonElement): List<List<Map<String, String>>> {

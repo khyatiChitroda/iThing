@@ -11,6 +11,7 @@ import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.model.ReportSchedule
 import com.ithing.mobile.domain.model.DeviceMappingFieldOption
+import com.ithing.mobile.domain.model.ReportDataRequest
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.repository.ReportsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,6 +23,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 data class ReportsUiState(
@@ -76,6 +80,9 @@ data class ReportsUiState(
     val downloadUrl: String? = null,
     val exceptionDialogMessage: String? = null,
     val exceptionDownloadUrl: String? = null,
+    val isExceptionDownloading: Boolean = false,
+    val exceptionDownloadId: Long? = null,
+    val isAnalyticsGenerating: Boolean = false,
     val savedReportsVersion: Int = 0,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
@@ -255,7 +262,7 @@ class ReportsViewModel @Inject constructor(
             if (result.isSuccess) {
                 _uiState.update {
                     it.copy(
-                        exceptionDialogMessage = "Download started.",
+                        exceptionDialogMessage = "Starting download...",
                         exceptionDownloadUrl = result.getOrNull(),
                         savedReportsVersion = it.savedReportsVersion + 1
                     )
@@ -277,6 +284,28 @@ class ReportsViewModel @Inject constructor(
 
     fun onExceptionDownloadHandled() {
         _uiState.update { it.copy(exceptionDownloadUrl = null) }
+    }
+
+    fun onExceptionDownloadEnqueued(downloadId: Long) {
+        _uiState.update {
+            it.copy(
+                exceptionDownloadUrl = null,
+                isExceptionDownloading = true,
+                exceptionDownloadId = downloadId,
+                exceptionDialogMessage = "Downloading..."
+            )
+        }
+    }
+
+    fun onExceptionDownloadCompleted() {
+        _uiState.update {
+            it.copy(
+                isExceptionDownloading = false,
+                exceptionDownloadId = null,
+                exceptionDialogMessage = "Download completed.",
+                savedReportsVersion = it.savedReportsVersion + 1
+            )
+        }
     }
 
     fun deleteScheduleReport(id: String) {
@@ -773,7 +802,7 @@ class ReportsViewModel @Inject constructor(
                 ) {
                     null
                 } else {
-                    "Date range cannot exceed 15 days."
+                    "Date range cannot exceed 45 days."
                 }
             )
         }
@@ -887,69 +916,82 @@ class ReportsViewModel @Inject constructor(
                 return
             }
 
-            val requests = state.analyticsChartRows.mapNotNull { row ->
-                val fields = row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                val stepMillis = when (row.frequency) {
-                    AnalyticsFrequency.HOUR_1 -> 1L * 60 * 60 * 1000
-                    AnalyticsFrequency.HOUR_2 -> 2L * 60 * 60 * 1000
-                    AnalyticsFrequency.HOUR_3 -> 3L * 60 * 60 * 1000
-                    AnalyticsFrequency.HOUR_5 -> 5L * 60 * 60 * 1000
-                    null -> return@mapNotNull null
-                }
-                com.ithing.mobile.domain.model.ReportDataRequest(
-                    deviceId = device.id,
-                    from = start.toString(),
-                    to = end.toString(),
-                    step = stepMillis,
-                    fields = fields
-                )
-            }
-
             viewModelScope.launch {
-                _uiState.update { it.copy(analyticsDialogMessage = "Generating PDF...") }
+                _uiState.update { it.copy(analyticsDialogMessage = "Generating PDF...", isAnalyticsGenerating = true) }
+                try {
+                    val owner = state.deviceOwnerDetails
+                    val labelFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                    val fromLabel = labelFormat.format(Date(start))
+                    val toLabel = labelFormat.format(Date(end))
 
-                val result = reportsRepository.requestAnalyticsPdfData(requests)
-                if (result.isFailure) {
-                    _uiState.update {
-                        it.copy(
-                            analyticsDialogMessage = result.exceptionOrNull()?.message
-                                ?: "Failed to generate PDF."
-                        )
-                    }
-                    return@launch
-                }
+                    val dataRequests = state.analyticsChartRows.mapNotNull { row ->
+                        val fields = row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                        val stepMillis = when (row.frequency) {
+                            AnalyticsFrequency.HOUR_1 -> 1L * 60 * 60 * 1000
+                            AnalyticsFrequency.HOUR_2 -> 2L * 60 * 60 * 1000
+                            AnalyticsFrequency.HOUR_3 -> 3L * 60 * 60 * 1000
+                            AnalyticsFrequency.HOUR_5 -> 5L * 60 * 60 * 1000
+                            null -> return@mapNotNull null
+                        }
 
-                val dataSets = result.getOrNull().orEmpty()
-                val chartRows = state.analyticsChartRows
-                val fileResult = withContext(Dispatchers.Default) {
-                    runCatching {
-                        AnalyticsPdfGenerator.generateAndSave(
-                            context = appContext,
+                        ReportDataRequest(
                             deviceId = device.id,
-                            chartRows = chartRows,
-                            dataSets = dataSets,
-                            fromMillis = start,
-                            toMillis = end
+                            from = start.toString(),
+                            to = end.toString(),
+                            step = stepMillis,
+                            fields = fields
                         )
                     }
-                }
 
-                if (fileResult.isSuccess) {
-                    val savedFile = fileResult.getOrNull()
-                    _uiState.update {
-                        it.copy(
-                            analyticsDialogMessage = "PDF saved: ${savedFile?.name ?: "report.pdf"}",
-                            savedReportsVersion = it.savedReportsVersion + 1
-                        )
+                    val dataResult = reportsRepository.requestAnalyticsPdfData(dataRequests)
+                    val dataSets = dataResult.getOrNull()
+                    if (!dataResult.isSuccess || dataSets == null) {
+                        _uiState.update {
+                            it.copy(
+                                analyticsDialogMessage = dataResult.exceptionOrNull()?.message
+                                    ?: "Failed to fetch report data."
+                            )
+                        }
+                        return@launch
                     }
-                    dismissAnalyticsDialog()
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            analyticsDialogMessage = fileResult.exceptionOrNull()?.message
-                                ?: "Failed to save PDF."
-                        )
+
+                    val chartRows = state.analyticsChartRows
+                    val pdfResult = withContext(Dispatchers.IO) {
+                        runCatching {
+                            AnalyticsPdfGenerator.generateAndSave(
+                                context = appContext,
+                                deviceId = device.id,
+                                chartRows = chartRows,
+                                dataSets = dataSets,
+                                fromMillis = start,
+                                toMillis = end,
+                                customerName = owner?.customerName.orEmpty(),
+                                machineName = owner?.machineName,
+                                oemLogoUrl = state.selectedOem?.logoUrl,
+                                fromLabel = fromLabel,
+                                toLabel = toLabel
+                            )
+                        }
                     }
+
+                    if (pdfResult.isSuccess) {
+                        _uiState.update {
+                            it.copy(
+                                analyticsDialogMessage = "Saved to Saved Reports.",
+                                savedReportsVersion = it.savedReportsVersion + 1
+                            )
+                        }
+                        dismissAnalyticsDialog()
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                analyticsDialogMessage = pdfResult.exceptionOrNull()?.message
+                                    ?: "Failed to generate PDF."
+                            )
+                        }
+                    }
+                } finally {
+                    _uiState.update { it.copy(isAnalyticsGenerating = false) }
                 }
             }
         }
@@ -1130,7 +1172,7 @@ class ReportsViewModel @Inject constructor(
         val end = state.analyticsTimeSpanEnd
         val timeSpanError =
             if (start == null || end == null || !analyticsIsRangeWithin15Days(start, end)) {
-                "Date range cannot exceed 15 days."
+                "Date range cannot exceed 45 days."
             } else {
                 null
             }

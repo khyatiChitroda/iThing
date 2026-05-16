@@ -1,6 +1,7 @@
 package com.ithing.mobile.presentation.feature.changepassword
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -33,10 +35,13 @@ import com.ithing.mobile.presentation.components.IThingTextField
 import com.ithing.mobile.presentation.theme.DarkText
 import com.ithing.mobile.presentation.theme.Slate400
 import com.ithing.mobile.presentation.theme.Slate600
+import com.ithing.mobile.presentation.theme.Theme1Blue
+import com.ithing.mobile.presentation.theme.Theme2Navy
 import com.ithing.mobile.presentation.theme.WebsiteBlue
 
 @Composable
 fun ChangePasswordScreen(
+    modifier: Modifier = Modifier,
     uiState: ChangePasswordUiState,
     onNewPasswordChange: (String) -> Unit,
     onConfirmPasswordChange: (String) -> Unit,
@@ -51,8 +56,13 @@ fun ChangePasswordScreen(
         uiState.confirmPassword.isNotBlank()
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Theme1Blue, Theme2Navy)
+                )
+            )
             .statusBarsPadding()
     ) {
         Column(

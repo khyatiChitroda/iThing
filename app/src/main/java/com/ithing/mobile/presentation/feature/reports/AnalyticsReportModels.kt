@@ -118,7 +118,8 @@ fun analyticsIsRangeWithin15Days(startMillis: Long, endMillis: Long): Boolean {
     if (startMillis > endMillis) return false
     val millisInDay = 24L * 60 * 60 * 1000
     val inclusiveDays = ((endMillis - startMillis) / millisInDay) + 1
-    return inclusiveDays <= 15
+    // Web app allows up to 45 days for analytics reports.
+    return inclusiveDays <= 45
 }
 
 fun analyticsNormalizeStartOfDay(millis: Long): Long {

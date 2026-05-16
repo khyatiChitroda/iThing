@@ -48,5 +48,17 @@ interface ReportsRepository {
         requests: List<ReportDataRequest>
     ): Result<List<List<Map<String, String>>>>
 
+    suspend fun generateAnalyticsPdfUrl(
+        deviceId: String,
+        customerName: String,
+        machineName: String?,
+        oemLogoUrl: String?,
+        fromTimestamp: Long,
+        toTimestamp: Long,
+        fromLabel: String,
+        toLabel: String,
+        charts: List<PdfViewChartConfig>
+    ): Result<String?>
+
     suspend fun exportExceptionReportUrl(): Result<String>
 }

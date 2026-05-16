@@ -67,3 +67,34 @@ data class ReportScheduleDeleteRequestDto(
 data class AlarmNotificationExportResponseDto(
     val url: String? = null
 )
+
+@Serializable
+data class AlarmNotificationExportEnvelopeDto(
+    val data: AlarmNotificationExportResponseDto? = null
+)
+
+@Serializable
+data class AnalyticsPdfReportRequestDto(
+    val deviceId: String,
+    val customerName: String,
+    val machineName: String? = null,
+    val oemLogoUrl: String? = null,
+    val fromTimestamp: Long,
+    val toTimestamp: Long,
+    val fromLabel: String,
+    val toLabel: String,
+    val charts: List<AnalyticsPdfChartConfigDto>
+)
+
+@Serializable
+data class AnalyticsPdfChartConfigDto(
+    val title: String,
+    val chartType: String,
+    val fields: List<String>,
+    val stepMs: Long
+)
+
+@Serializable
+data class AnalyticsPdfReportResponseDto(
+    val url: String? = null
+)
