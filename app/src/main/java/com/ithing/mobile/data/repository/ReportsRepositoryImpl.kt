@@ -68,7 +68,7 @@ class ReportsRepositoryImpl @Inject constructor(
             val payload = requireNotNull(response.data.data) {
                 response.data.message.ifBlank { "Device owner details not found" }
             }
-
+// device details
             DeviceOwnerDetails(
                 deviceId = payload.device.id,
                 deviceName = payload.device.name,
