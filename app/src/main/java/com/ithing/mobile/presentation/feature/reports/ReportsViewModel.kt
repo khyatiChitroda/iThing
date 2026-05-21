@@ -14,6 +14,17 @@ import com.ithing.mobile.domain.model.DeviceMappingFieldOption
 import com.ithing.mobile.domain.model.ReportDataRequest
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.repository.ReportsRepository
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsChartConfigUi
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsChartType
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsDatePreset
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsFrequency
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsPdfGenerator
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.ScheduleDeliveryFrequency
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsDateRangeLabel
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsIsRangeWithin15Days
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsNormalizeEndOfDay
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsNormalizeStartOfDay
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsRangeForPreset
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -917,7 +928,12 @@ class ReportsViewModel @Inject constructor(
             }
 
             viewModelScope.launch {
-                _uiState.update { it.copy(analyticsDialogMessage = "Generating PDF...", isAnalyticsGenerating = true) }
+                _uiState.update {
+                    it.copy(
+                        analyticsDialogMessage = "Generating PDF...",
+                        isAnalyticsGenerating = true
+                    )
+                }
                 try {
                     val owner = state.deviceOwnerDetails
                     val labelFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
@@ -925,7 +941,8 @@ class ReportsViewModel @Inject constructor(
                     val toLabel = labelFormat.format(Date(end))
 
                     val dataRequests = state.analyticsChartRows.mapNotNull { row ->
-                        val fields = row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                        val fields =
+                            row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                         val stepMillis = when (row.frequency) {
                             AnalyticsFrequency.HOUR_1 -> 1L * 60 * 60 * 1000
                             AnalyticsFrequency.HOUR_2 -> 2L * 60 * 60 * 1000

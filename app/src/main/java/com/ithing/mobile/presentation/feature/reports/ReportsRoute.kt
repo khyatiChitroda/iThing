@@ -5,8 +5,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -62,7 +60,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -71,7 +68,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -80,7 +76,11 @@ import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.model.ReportSchedule
-import com.ithing.mobile.presentation.theme.AccentBlue
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsChartType
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsDatePreset
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsFrequency
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsReportDialog
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.ScheduleDeliveryFrequency
 import com.ithing.mobile.presentation.theme.LightGrayBg
 import com.ithing.mobile.presentation.theme.MutedText
 import com.ithing.mobile.presentation.theme.NavyBlue
@@ -823,7 +823,7 @@ private fun ScheduledReportsSection(
                     onClick = onRefresh,
                     enabled = selectedDevice != null && !isRefreshing
                 ) {
-                    androidx.compose.material3.Icon(
+                    Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = null
                     )
@@ -887,7 +887,9 @@ private fun ScheduledReportsSection(
                                     ) { Text("Delete") }
                                 },
                                 dismissButton = {
-                                    OutlinedButton(onClick = { pendingDeleteSchedule = null }) { Text("Cancel") }
+                                    OutlinedButton(onClick = {
+                                        pendingDeleteSchedule = null
+                                    }) { Text("Cancel") }
                                 }
                             )
                         }
@@ -994,9 +996,15 @@ private fun SavedReportsSection(
     fun loadFiles() {
         scope.launch {
             files = withContext(Dispatchers.IO) {
-                val dir = context.getExternalFilesDir("reports") ?: File(context.filesDir, "reports")
+                val dir =
+                    context.getExternalFilesDir("reports") ?: File(context.filesDir, "reports")
                 dir.listFiles()
-                    ?.filter { it.isFile && (it.extension.equals("pdf", true) || it.extension.equals("xlsx", true)) }
+                    ?.filter {
+                        it.isFile && (it.extension.equals(
+                            "pdf",
+                            true
+                        ) || it.extension.equals("xlsx", true))
+                    }
                     ?.sortedByDescending { it.lastModified() }
                     .orEmpty()
             }
@@ -1314,7 +1322,7 @@ private fun ScheduledReportFieldsCell(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        androidx.compose.material3.Icon(
+        Icon(
             imageVector = Icons.Outlined.Visibility,
             contentDescription = null,
             tint = Color(0xFF159E9C),
@@ -1357,7 +1365,7 @@ private fun ReportFieldsDialog(
                     )
 
                     IconButton(onClick = onDismiss) {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
                             tint = Color(0xFF6B7280)
@@ -1526,11 +1534,11 @@ private fun PaginationIconButton(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    androidx.compose.material3.IconButton(
+    IconButton(
         onClick = onClick,
         enabled = enabled
     ) {
-        androidx.compose.material3.Icon(
+        Icon(
             imageVector = icon,
             contentDescription = null,
             tint = if (enabled) Color(0xFF2A3347) else Color(0xFFB8C0CC)
@@ -1563,7 +1571,7 @@ private fun ScheduledReportDeleteCell(
                 .background(Color(0xFFD9E1EC))
         )
         Spacer(modifier = Modifier.width(16.dp))
-        androidx.compose.material3.Icon(
+        Icon(
             imageVector = Icons.Outlined.DeleteOutline,
             contentDescription = null,
             tint = Color(0xFFD62828),
