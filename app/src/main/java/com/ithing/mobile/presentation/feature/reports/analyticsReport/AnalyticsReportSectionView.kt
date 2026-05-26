@@ -9,6 +9,7 @@ import android.view.View
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.floor
 
 internal class AnalyticsReportSectionView(context: Context) : View(context) {
 
@@ -69,6 +70,24 @@ internal class AnalyticsReportSectionView(context: Context) : View(context) {
 
     private fun tableGapPx(): Float = if (chartType == AnalyticsChartType.BAR) 58f else 18f
 
+    private data class TableLayout(val tableH: Float, val maxTimeColsPerBlock: Int)
+
+    private fun computeTableLayout(tableWidth: Float, timePoints: Int, fieldCount: Int): TableLayout {
+        val minColW = 52f
+        val headerH = 16f
+        val rowH = 14f
+        val footH = 14f
+        val blockGap = 10f
+
+        val maxTimeColsPerBlock =
+            (((tableWidth / minColW).toInt()).coerceAtLeast(3) - 1).coerceAtLeast(1)
+        val blocks = ((timePoints + maxTimeColsPerBlock - 1) / maxTimeColsPerBlock).coerceAtLeast(1)
+
+        val blockH = headerH + (fieldCount * rowH) + footH
+        val tableH = blocks * blockH + (blocks - 1) * blockGap
+        return TableLayout(tableH = tableH, maxTimeColsPerBlock = maxTimeColsPerBlock)
+    }
+
     private fun seriesColor(fieldName: String, fallbackIndex: Int): Int {
         val n = fieldName.lowercase(Locale.US)
         return when {
@@ -114,24 +133,11 @@ internal class AnalyticsReportSectionView(context: Context) : View(context) {
         val tableGap = tableGapPx()
         val yLabelW = 48f
         val plotWidth = (width.toFloat() - 2 * marginPx - yLabelW).coerceAtLeast(1f)
-        val minColW = 52f
-        val maxTimeColsPerBlock =
-            (((plotWidth / minColW).toInt()).coerceAtLeast(3) - 1).coerceAtLeast(1)
-        val blocks = if (chartType == AnalyticsChartType.BAR) {
-            ((data.size + maxTimeColsPerBlock - 1) / maxTimeColsPerBlock).coerceAtLeast(1)
-        } else {
-            1
-        }
-        val headerH = 16f
-        val rowH = 14f
-        val footH = 14f
-        val blockGap = 10f
-        val blockH = headerH + (fields.take(6).size * rowH) + footH
-        val tableH = if (chartType == AnalyticsChartType.BAR) {
-            blocks * blockH + (blocks - 1) * blockGap
-        } else {
-            140f
-        }
+        val tableH = computeTableLayout(
+            tableWidth = plotWidth,
+            timePoints = data.size,
+            fieldCount = fields.take(6).size
+        ).tableH
         val sectionH =
             (sectionTitleH + legendH + chartH + tableGap + tableH).toInt().coerceAtLeast(1)
 
@@ -143,13 +149,17 @@ internal class AnalyticsReportSectionView(context: Context) : View(context) {
         val legendH = legendHeightPx()
         val chartH = 260f
         val tableGap = tableGapPx()
-        val tableH = 140f
 
         val chartLeft = marginPx
         val chartRight = (pageWidthPx - marginPx)
         val yLabelW = 48f
         val plotLeft = chartLeft + yLabelW
         val plotRight = chartRight
+        val tableH = computeTableLayout(
+            tableWidth = (plotRight - plotLeft),
+            timePoints = data.size,
+            fieldCount = fields.take(6).size
+        ).tableH
 
         val bigTitlePaint = Paint(sectionTitlePaint).apply { textSize = 16.5f }
         canvas.drawText(title, chartLeft, 18f, bigTitlePaint)
@@ -181,7 +191,13 @@ internal class AnalyticsReportSectionView(context: Context) : View(context) {
 
             val rawRange = dataMax - dataMin
             val (minVal, maxVal) = if (ct == AnalyticsChartType.BAR || ct == AnalyticsChartType.LINE || ct == AnalyticsChartType.AREA) {
-                (-400.0) to 500.0
+                val netField = fields.firstOrNull { it.lowercase(Locale.US).contains("net") }
+                val totalField = fields.firstOrNull { it.lowercase(Locale.US).contains("total") }
+                val netMin = netField?.let { f -> data.mapNotNull { it[f]?.toDoubleOrNull() }.minOrNull() }
+                val totalMax = totalField?.let { f -> data.mapNotNull { it[f]?.toDoubleOrNull() }.maxOrNull() }
+                val minCandidate = netMin ?: dataMin
+                val maxCandidate = totalMax ?: dataMax
+                (floor(minCandidate / 100.0) * 100.0) to (kotlin.math.ceil(maxCandidate / 100.0) * 100.0)
             } else if (abs(rawRange) < 1e-9) {
                 val pad = maxOf(1.0, abs(dataMin) * 0.05)
                 (dataMin - pad) to (dataMax + pad)
@@ -586,10 +602,8 @@ internal class AnalyticsReportSectionView(context: Context) : View(context) {
         }
 
         val tableWidth = right - left
-        val minColW = 52f
-        val maxTimeColsPerBlock =
-            (((tableWidth / minColW).toInt()).coerceAtLeast(3) - 1).coerceAtLeast(1)
-        val blocks = if (data.isNotEmpty()) data.chunked(maxTimeColsPerBlock) else emptyList()
+        val layout = computeTableLayout(tableWidth = tableWidth, timePoints = data.size, fieldCount = fields.size)
+        val blocks = if (data.isNotEmpty()) data.chunked(layout.maxTimeColsPerBlock) else emptyList()
 
         val headerH = 16f
         val rowH = 14f
