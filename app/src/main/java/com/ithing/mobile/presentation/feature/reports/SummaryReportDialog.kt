@@ -278,7 +278,10 @@ fun SummaryReportDialog(
                         Text("Cancel")
                     }
                     Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                    Button(onClick = onSaveClick) {
+                    Button(
+                        onClick = onSaveClick,
+                        enabled = !uiState.isSummaryGenerating
+                    ) {
                         Text("Save")
                     }
                 }

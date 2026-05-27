@@ -159,7 +159,6 @@ fun ReportsRoute(
         onAnalyticsRowFrequencyChanged = viewModel::onAnalyticsRowFrequencyChanged,
         onAddAnalyticsRow = viewModel::addAnalyticsRow,
         onRemoveAnalyticsRow = viewModel::removeAnalyticsRow,
-        onAnalyticsSaveViewClick = viewModel::onAnalyticsSaveViewClick,
         onAnalyticsGeneratePdfClick = viewModel::onAnalyticsGeneratePdfClick,
         onDeleteScheduleReport = viewModel::deleteScheduleReport,
         onRefresh = viewModel::refreshReports,
@@ -214,7 +213,6 @@ private fun ReportsScreen(
     onAnalyticsRowFrequencyChanged: (String, AnalyticsFrequency?) -> Unit,
     onAddAnalyticsRow: () -> Unit,
     onRemoveAnalyticsRow: (String) -> Unit,
-    onAnalyticsSaveViewClick: () -> Unit,
     onAnalyticsGeneratePdfClick: () -> Unit,
     onDeleteScheduleReport: (String) -> Unit,
     onRefresh: () -> Unit,
@@ -369,7 +367,6 @@ private fun ReportsScreen(
                 onRowFrequencyChanged = onAnalyticsRowFrequencyChanged,
                 onAddMore = onAddAnalyticsRow,
                 onRemoveRow = onRemoveAnalyticsRow,
-                onSaveViewClick = onAnalyticsSaveViewClick,
                 onGeneratePdfClick = onAnalyticsGeneratePdfClick
             )
         }
@@ -395,6 +392,7 @@ private fun ReportsScreen(
             ReportsTopToast(
                 title = "Summary Report",
                 message = message,
+                isLoading = uiState.isSummaryGenerating,
                 onDismiss = onDismissSummaryMessage
             )
         }
@@ -419,6 +417,7 @@ private fun ReportsScreen(
             ReportsTopToast(
                 title = "Schedule Report",
                 message = message,
+                isLoading = false,
                 onDismiss = onDismissScheduleMessage
             )
         }
@@ -427,6 +426,7 @@ private fun ReportsScreen(
             ReportsTopToast(
                 title = "Analytics Report",
                 message = message,
+                isLoading = uiState.isAnalyticsGenerating,
                 onDismiss = onDismissAnalyticsMessage
             )
         }
@@ -435,6 +435,7 @@ private fun ReportsScreen(
             ReportsTopToast(
                 title = "Exception Report",
                 message = message,
+                isLoading = uiState.isExceptionDownloading,
                 onDismiss = onDismissExceptionMessage
             )
         }
@@ -459,11 +460,14 @@ private fun ReportsScreen(
 private fun ReportsTopToast(
     title: String,
     message: String,
+    isLoading: Boolean,
     onDismiss: () -> Unit
 ) {
-    LaunchedEffect(message) {
-        delay(4500)
-        onDismiss()
+    LaunchedEffect(message, isLoading) {
+        if (!isLoading) {
+            delay(4500)
+            onDismiss()
+        }
     }
 
     Box(
@@ -482,11 +486,19 @@ private fun ReportsTopToast(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .background(Color(0xFF22C55E), CircleShape)
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Color(0xFF22C55E),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(Color(0xFF22C55E), CircleShape)
+                    )
+                }
                 Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = title,

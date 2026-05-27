@@ -54,11 +54,7 @@ private val analyticsDateFormatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale
 
 fun analyticsDateRangeLabel(startMillis: Long?, endMillis: Long?): String {
     if (startMillis == null || endMillis == null) return ""
-    return "${analyticsDateFormatter.format(Date(startMillis))} to ${
-        analyticsDateFormatter.format(
-            Date(endMillis)
-        )
-    }"
+    return "${analyticsDateFormatter.format(Date(startMillis))} to ${analyticsDateFormatter.format(Date(endMillis))}"
 }
 
 fun analyticsRangeForPreset(

@@ -28,6 +28,7 @@ mockito = "5.5.0"
 mockito-kotlin = "5.1.0"
 runtimeVersion = "1.10.6"
 coreSplash = "1.0.1"
+kizitonwoseCalendar = "2.6.0"
 
 
 [libraries]
@@ -79,6 +80,7 @@ mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito-kotlin" }
 androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtimeVersion" }
 core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplash" }
+kizitonwose-calendar-compose = { group = "com.kizitonwose.calendar", name = "compose", version.ref = "kizitonwoseCalendar" }
 
 
 [plugins]

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -65,7 +66,6 @@ fun AnalyticsReportDialog(
     onRowFrequencyChanged: (String, AnalyticsFrequency?) -> Unit,
     onAddMore: () -> Unit,
     onRemoveRow: (String) -> Unit,
-    onSaveViewClick: () -> Unit,
     onGeneratePdfClick: () -> Unit
 ) {
     var showCustomRangeDialog by remember { mutableStateOf(false) }
@@ -197,16 +197,20 @@ fun AnalyticsReportDialog(
                                 Text("Cancel")
                             }
                             Button(
-                                onClick = onSaveViewClick,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Save view")
-                            }
-                            Button(
                                 onClick = onGeneratePdfClick,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !uiState.isAnalyticsGenerating
                             ) {
-                                Text("Generate PDF")
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (uiState.isAnalyticsGenerating) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.size(8.dp))
+                                    }
+                                    Text("Generate PDF")
+                                }
                             }
                         }
                     } else {
@@ -220,12 +224,20 @@ fun AnalyticsReportDialog(
                                 Text("Cancel")
                             }
                             Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                            Button(onClick = onSaveViewClick) {
-                                Text("Save view")
-                            }
-                            Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                            Button(onClick = onGeneratePdfClick) {
-                                Text("Generate PDF")
+                            Button(
+                                onClick = onGeneratePdfClick,
+                                enabled = !uiState.isAnalyticsGenerating
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (uiState.isAnalyticsGenerating) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.size(8.dp))
+                                    }
+                                    Text("Generate PDF")
+                                }
                             }
                         }
                     }

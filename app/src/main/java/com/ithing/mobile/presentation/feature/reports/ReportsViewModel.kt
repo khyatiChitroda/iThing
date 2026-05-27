@@ -93,6 +93,7 @@ data class ReportsUiState(
     val exceptionDownloadUrl: String? = null,
     val isExceptionDownloading: Boolean = false,
     val exceptionDownloadId: Long? = null,
+    val isSummaryGenerating: Boolean = false,
     val isAnalyticsGenerating: Boolean = false,
     val savedReportsVersion: Int = 0,
     val isLoading: Boolean = true,
@@ -624,42 +625,53 @@ class ReportsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            if (inclusiveDays > 15) {
-                _uiState.update {
-                    it.copy(summaryDialogMessage = "Your report is being processed. You will receive it via email.")
-                }
-                dismissSummaryDialog()
+            _uiState.update {
+                it.copy(
+                    isSummaryGenerating = true,
+                    summaryDialogMessage = "Generating summary report..."
+                )
             }
 
-            val result = reportsRepository.generateSummaryReport(
-                deviceId = device.id,
-                customerId = customerId,
-                oemId = oemId,
-                email = state.summaryEmail,
-                subject = state.summarySubject,
-                body = state.summaryBody,
-                fromTimestamp = start,
-                toTimestamp = end,
-                fields = fields
-            )
+            try {
+                if (inclusiveDays > 15) {
+                    _uiState.update {
+                        it.copy(summaryDialogMessage = "Your report is being processed. You will receive it via email.")
+                    }
+                    dismissSummaryDialog()
+                }
 
-            val url = result.getOrNull()
-            if (result.isSuccess) {
-                _uiState.update {
-                    it.copy(
-                        summaryDialogMessage = "Report triggered. Please wait. You will get an email on ${state.summaryEmail}",
-                        downloadUrl = url
-                    )
+                val result = reportsRepository.generateSummaryReport(
+                    deviceId = device.id,
+                    customerId = customerId,
+                    oemId = oemId,
+                    email = state.summaryEmail,
+                    subject = state.summarySubject,
+                    body = state.summaryBody,
+                    fromTimestamp = start,
+                    toTimestamp = end,
+                    fields = fields
+                )
+
+                val url = result.getOrNull()
+                if (result.isSuccess) {
+                    _uiState.update {
+                        it.copy(
+                            summaryDialogMessage = "Report triggered. Please wait. You will get an email on ${state.summaryEmail}",
+                            downloadUrl = url
+                        )
+                    }
+                    dismissSummaryDialog()
+                    refreshReports()
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            summaryDialogMessage = result.exceptionOrNull()?.message
+                                ?: "Failed to generate report."
+                        )
+                    }
                 }
-                dismissSummaryDialog()
-                refreshReports()
-            } else {
-                _uiState.update {
-                    it.copy(
-                        summaryDialogMessage = result.exceptionOrNull()?.message
-                            ?: "Failed to generate report."
-                    )
-                }
+            } finally {
+                _uiState.update { it.copy(isSummaryGenerating = false) }
             }
         }
     }
@@ -860,58 +872,6 @@ class ReportsViewModel @Inject constructor(
                 state
             } else {
                 state.copy(analyticsChartRows = state.analyticsChartRows.filterNot { it.id == rowId })
-            }
-        }
-    }
-
-    fun onAnalyticsSaveViewClick() {
-        if (validateAnalyticsForm()) {
-            val state = _uiState.value
-            val device = state.selectedDevice ?: return
-            val customerId = device.customerId
-            val oemId = device.oemId
-            if (customerId.isNullOrBlank() || oemId.isNullOrBlank()) {
-                _uiState.update { it.copy(analyticsDialogMessage = "Customer/OEM not found for this device.") }
-                return
-            }
-
-            val charts = state.analyticsChartRows.mapNotNull { row ->
-                val chartType = row.chartType ?: return@mapNotNull null
-                val fields = row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                val step = row.frequency?.label ?: return@mapNotNull null
-                com.ithing.mobile.domain.model.PdfViewChartConfig(
-                    title = row.title,
-                    chartType = when (chartType) {
-                        AnalyticsChartType.LINE -> "line_chart"
-                        AnalyticsChartType.BAR -> "bar_chart"
-                        AnalyticsChartType.HEAT_MAP -> "heat_map"
-                        AnalyticsChartType.AREA -> "area_chart"
-                    },
-                    fields = fields,
-                    step = step
-                )
-            }
-
-            viewModelScope.launch {
-                val result = reportsRepository.saveAnalyticsView(
-                    deviceId = device.id,
-                    customerId = customerId,
-                    oemId = oemId,
-                    userId = sessionManager.getUserId().orEmpty(),
-                    charts = charts
-                )
-
-                if (result.isSuccess) {
-                    _uiState.update { it.copy(analyticsDialogMessage = "View saved successfully.") }
-                    dismissAnalyticsDialog()
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            analyticsDialogMessage = result.exceptionOrNull()?.message
-                                ?: "Failed to save view."
-                        )
-                    }
-                }
             }
         }
     }
