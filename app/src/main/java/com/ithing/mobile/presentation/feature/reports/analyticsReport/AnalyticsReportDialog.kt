@@ -1,6 +1,5 @@
-package com.ithing.mobile.presentation.feature.reports
+package com.ithing.mobile.presentation.feature.reports.analyticsReport
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +23,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -50,7 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ithing.mobile.domain.model.DeviceMappingFieldOption
+import com.ithing.mobile.presentation.feature.reports.ReportsUiState
 import com.ithing.mobile.presentation.theme.White
+import kotlin.collections.forEach
 
 @Composable
 fun AnalyticsReportDialog(
@@ -64,10 +66,8 @@ fun AnalyticsReportDialog(
     onRowFrequencyChanged: (String, AnalyticsFrequency?) -> Unit,
     onAddMore: () -> Unit,
     onRemoveRow: (String) -> Unit,
-    onSaveViewClick: () -> Unit,
     onGeneratePdfClick: () -> Unit
 ) {
-    var showTimeSpanPicker by remember { mutableStateOf(false) }
     var showCustomRangeDialog by remember { mutableStateOf(false) }
     val bodyScrollState = rememberScrollState()
 
@@ -85,159 +85,171 @@ fun AnalyticsReportDialog(
             BoxWithConstraints {
                 val compactLayout = maxWidth < 600.dp
                 Column {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 18.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Analytic Report",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF52637E)
-                    )
-
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = Color(0xFF6B7280)
-                        )
-                    }
-                }
-
-                DividerLine()
-
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = if (compactLayout) 460.dp else 520.dp)
-                        .verticalScroll(bodyScrollState)
-                        .padding(horizontal = 24.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
-                ) {
-                    Text(
-                        text = "Time Span",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF495C79)
-                    )
-
-                    Surface(
-                        modifier = Modifier.clickable { showCustomRangeDialog = true },
-                        shape = RoundedCornerShape(16.dp),
-                        tonalElevation = 0.dp,
-                        shadowElevation = 2.dp,
-                        color = White
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CalendarMonth,
-                                contentDescription = null,
-                                tint = Color(0xFF233A69),
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Text(
-                                text = uiState.analyticsTimeSpanLabel,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF233A69)
-                            )
-                        }
-                    }
-
-                    uiState.analyticsTimeSpanError?.let { error ->
-                        Text(
-                            text = error,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Color(0xFFD62828)
-                        )
-                    }
-
-                    uiState.analyticsChartRows.forEach { row ->
-                        AnalyticsChartConfigCard(
-                            row = row,
-                            compactLayout = compactLayout,
-                            availableFields = uiState.availableAnalyticsFields,
-                            showRemove = uiState.analyticsChartRows.size > 1,
-                            onTitleChanged = { onRowTitleChanged(row.id, it) },
-                            onChartTypeChanged = { onRowChartTypeChanged(row.id, it) },
-                            onFieldToggled = { onRowFieldToggled(row.id, it) },
-                            onFrequencyChanged = { onRowFrequencyChanged(row.id, it) },
-                            onRemove = { onRemoveRow(row.id) }
-                        )
-                    }
-
-                    Button(
-                        onClick = onAddMore,
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text("Add More")
-                    }
-                }
-
-                DividerLine()
-
-                if (compactLayout) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Cancel")
-                        }
-                        Button(
-                            onClick = onSaveViewClick,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Save view")
-                        }
-                        Button(
-                            onClick = onGeneratePdfClick,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Generate PDF")
-                        }
-                    }
-                } else {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp, vertical = 18.dp),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedButton(onClick = onDismiss) {
-                            Text("Cancel")
+                        Text(
+                            text = "Analytic Report",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF52637E)
+                        )
+
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color(0xFF6B7280)
+                            )
                         }
-                        Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                        Button(onClick = onSaveViewClick) {
-                            Text("Save view")
+                    }
+
+                    DividerLine()
+
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = if (compactLayout) 460.dp else 520.dp)
+                            .verticalScroll(bodyScrollState)
+                            .padding(horizontal = 24.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
+                    ) {
+                        Text(
+                            text = "Time Span",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF495C79)
+                        )
+
+                        Surface(
+                            modifier = Modifier.clickable { showCustomRangeDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            tonalElevation = 0.dp,
+                            shadowElevation = 2.dp,
+                            color = White
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = Color(0xFF233A69),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Text(
+                                    text = uiState.analyticsTimeSpanLabel,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF233A69)
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                        Button(onClick = onGeneratePdfClick) {
-                            Text("Generate PDF")
+
+                        uiState.analyticsTimeSpanError?.let { error ->
+                            Text(
+                                text = error,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Color(0xFFD62828)
+                            )
+                        }
+
+                        uiState.analyticsChartRows.forEach { row ->
+                            AnalyticsChartConfigCard(
+                                row = row,
+                                compactLayout = compactLayout,
+                                availableFields = uiState.availableAnalyticsFields,
+                                showRemove = uiState.analyticsChartRows.size > 1,
+                                onTitleChanged = { onRowTitleChanged(row.id, it) },
+                                onChartTypeChanged = { onRowChartTypeChanged(row.id, it) },
+                                onFieldToggled = { onRowFieldToggled(row.id, it) },
+                                onFrequencyChanged = { onRowFrequencyChanged(row.id, it) },
+                                onRemove = { onRemoveRow(row.id) }
+                            )
+                        }
+
+                        Button(
+                            onClick = onAddMore,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("Add More")
+                        }
+                    }
+
+                    DividerLine()
+
+                    if (compactLayout) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 18.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onDismiss,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Cancel")
+                            }
+                            Button(
+                                onClick = onGeneratePdfClick,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !uiState.isAnalyticsGenerating
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (uiState.isAnalyticsGenerating) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.size(8.dp))
+                                    }
+                                    Text("Generate PDF")
+                                }
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 18.dp),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            OutlinedButton(onClick = onDismiss) {
+                                Text("Cancel")
+                            }
+                            Spacer(modifier = Modifier.padding(horizontal = 4.dp))
+                            Button(
+                                onClick = onGeneratePdfClick,
+                                enabled = !uiState.isAnalyticsGenerating
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (uiState.isAnalyticsGenerating) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.size(8.dp))
+                                    }
+                                    Text("Generate PDF")
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        }
     }
 
-            if (showCustomRangeDialog) {
-                AnalyticsCustomDateRangeDialog(
-                    startMillis = uiState.analyticsTimeSpanStart,
-                    endMillis = uiState.analyticsTimeSpanEnd,
+    if (showCustomRangeDialog) {
+        AnalyticsCustomDateRangeDialog(
+            startMillis = uiState.analyticsTimeSpanStart,
+            endMillis = uiState.analyticsTimeSpanEnd,
             onDismiss = { showCustomRangeDialog = false },
             onConfirm = { start, end ->
                 showCustomRangeDialog = false

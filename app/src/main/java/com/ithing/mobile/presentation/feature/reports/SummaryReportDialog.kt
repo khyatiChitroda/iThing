@@ -46,6 +46,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsCustomDateRangeDialog
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsDatePreset
 import com.ithing.mobile.presentation.theme.White
 
 @Composable
@@ -276,7 +278,10 @@ fun SummaryReportDialog(
                         Text("Cancel")
                     }
                     Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                    Button(onClick = onSaveClick) {
+                    Button(
+                        onClick = onSaveClick,
+                        enabled = !uiState.isSummaryGenerating
+                    ) {
                         Text("Save")
                     }
                 }

@@ -14,6 +14,17 @@ import com.ithing.mobile.domain.model.DeviceMappingFieldOption
 import com.ithing.mobile.domain.model.ReportDataRequest
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.repository.ReportsRepository
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsChartConfigUi
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsChartType
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsDatePreset
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsFrequency
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsPdfGenerator
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.ScheduleDeliveryFrequency
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsDateRangeLabel
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsIsRangeWithin15Days
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsNormalizeEndOfDay
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsNormalizeStartOfDay
+import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsRangeForPreset
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +93,7 @@ data class ReportsUiState(
     val exceptionDownloadUrl: String? = null,
     val isExceptionDownloading: Boolean = false,
     val exceptionDownloadId: Long? = null,
+    val isSummaryGenerating: Boolean = false,
     val isAnalyticsGenerating: Boolean = false,
     val savedReportsVersion: Int = 0,
     val isLoading: Boolean = true,
@@ -613,42 +625,53 @@ class ReportsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            if (inclusiveDays > 15) {
-                _uiState.update {
-                    it.copy(summaryDialogMessage = "Your report is being processed. You will receive it via email.")
-                }
-                dismissSummaryDialog()
+            _uiState.update {
+                it.copy(
+                    isSummaryGenerating = true,
+                    summaryDialogMessage = "Generating summary report..."
+                )
             }
 
-            val result = reportsRepository.generateSummaryReport(
-                deviceId = device.id,
-                customerId = customerId,
-                oemId = oemId,
-                email = state.summaryEmail,
-                subject = state.summarySubject,
-                body = state.summaryBody,
-                fromTimestamp = start,
-                toTimestamp = end,
-                fields = fields
-            )
+            try {
+                if (inclusiveDays > 15) {
+                    _uiState.update {
+                        it.copy(summaryDialogMessage = "Your report is being processed. You will receive it via email.")
+                    }
+                    dismissSummaryDialog()
+                }
 
-            val url = result.getOrNull()
-            if (result.isSuccess) {
-                _uiState.update {
-                    it.copy(
-                        summaryDialogMessage = "Report triggered. Please wait. You will get an email on ${state.summaryEmail}",
-                        downloadUrl = url
-                    )
+                val result = reportsRepository.generateSummaryReport(
+                    deviceId = device.id,
+                    customerId = customerId,
+                    oemId = oemId,
+                    email = state.summaryEmail,
+                    subject = state.summarySubject,
+                    body = state.summaryBody,
+                    fromTimestamp = start,
+                    toTimestamp = end,
+                    fields = fields
+                )
+
+                val url = result.getOrNull()
+                if (result.isSuccess) {
+                    _uiState.update {
+                        it.copy(
+                            summaryDialogMessage = "Report triggered. Please wait. You will get an email on ${state.summaryEmail}",
+                            downloadUrl = url
+                        )
+                    }
+                    dismissSummaryDialog()
+                    refreshReports()
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            summaryDialogMessage = result.exceptionOrNull()?.message
+                                ?: "Failed to generate report."
+                        )
+                    }
                 }
-                dismissSummaryDialog()
-                refreshReports()
-            } else {
-                _uiState.update {
-                    it.copy(
-                        summaryDialogMessage = result.exceptionOrNull()?.message
-                            ?: "Failed to generate report."
-                    )
-                }
+            } finally {
+                _uiState.update { it.copy(isSummaryGenerating = false) }
             }
         }
     }
@@ -853,58 +876,6 @@ class ReportsViewModel @Inject constructor(
         }
     }
 
-    fun onAnalyticsSaveViewClick() {
-        if (validateAnalyticsForm()) {
-            val state = _uiState.value
-            val device = state.selectedDevice ?: return
-            val customerId = device.customerId
-            val oemId = device.oemId
-            if (customerId.isNullOrBlank() || oemId.isNullOrBlank()) {
-                _uiState.update { it.copy(analyticsDialogMessage = "Customer/OEM not found for this device.") }
-                return
-            }
-
-            val charts = state.analyticsChartRows.mapNotNull { row ->
-                val chartType = row.chartType ?: return@mapNotNull null
-                val fields = row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                val step = row.frequency?.label ?: return@mapNotNull null
-                com.ithing.mobile.domain.model.PdfViewChartConfig(
-                    title = row.title,
-                    chartType = when (chartType) {
-                        AnalyticsChartType.LINE -> "line_chart"
-                        AnalyticsChartType.BAR -> "bar_chart"
-                        AnalyticsChartType.HEAT_MAP -> "heat_map"
-                        AnalyticsChartType.AREA -> "area_chart"
-                    },
-                    fields = fields,
-                    step = step
-                )
-            }
-
-            viewModelScope.launch {
-                val result = reportsRepository.saveAnalyticsView(
-                    deviceId = device.id,
-                    customerId = customerId,
-                    oemId = oemId,
-                    userId = sessionManager.getUserId().orEmpty(),
-                    charts = charts
-                )
-
-                if (result.isSuccess) {
-                    _uiState.update { it.copy(analyticsDialogMessage = "View saved successfully.") }
-                    dismissAnalyticsDialog()
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            analyticsDialogMessage = result.exceptionOrNull()?.message
-                                ?: "Failed to save view."
-                        )
-                    }
-                }
-            }
-        }
-    }
-
     fun onAnalyticsGeneratePdfClick() {
         if (validateAnalyticsForm()) {
             val state = _uiState.value
@@ -917,7 +888,12 @@ class ReportsViewModel @Inject constructor(
             }
 
             viewModelScope.launch {
-                _uiState.update { it.copy(analyticsDialogMessage = "Generating PDF...", isAnalyticsGenerating = true) }
+                _uiState.update {
+                    it.copy(
+                        analyticsDialogMessage = "Generating PDF...",
+                        isAnalyticsGenerating = true
+                    )
+                }
                 try {
                     val owner = state.deviceOwnerDetails
                     val labelFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
@@ -925,7 +901,8 @@ class ReportsViewModel @Inject constructor(
                     val toLabel = labelFormat.format(Date(end))
 
                     val dataRequests = state.analyticsChartRows.mapNotNull { row ->
-                        val fields = row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                        val fields =
+                            row.selectedFields.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                         val stepMillis = when (row.frequency) {
                             AnalyticsFrequency.HOUR_1 -> 1L * 60 * 60 * 1000
                             AnalyticsFrequency.HOUR_2 -> 2L * 60 * 60 * 1000

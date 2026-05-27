@@ -1,15 +1,10 @@
-package com.ithing.mobile.presentation.feature.reports
+package com.ithing.mobile.presentation.feature.reports.analyticsReport
 
-import androidx.activity.result.launch
-import androidx.compose.animation.core.copy
-import androidx.lifecycle.map
-import androidx.lifecycle.viewModelScope
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
-import kotlin.concurrent.atomics.update
 
 enum class AnalyticsChartType(val label: String) {
     LINE("Line Chart"),
@@ -62,7 +57,10 @@ fun analyticsDateRangeLabel(startMillis: Long?, endMillis: Long?): String {
     return "${analyticsDateFormatter.format(Date(startMillis))} to ${analyticsDateFormatter.format(Date(endMillis))}"
 }
 
-fun analyticsRangeForPreset(preset: AnalyticsDatePreset, nowMillis: Long = System.currentTimeMillis()): Pair<Long, Long>? {
+fun analyticsRangeForPreset(
+    preset: AnalyticsDatePreset,
+    nowMillis: Long = System.currentTimeMillis()
+): Pair<Long, Long>? {
     val calendar = Calendar.getInstance().apply { timeInMillis = nowMillis }
     return when (preset) {
         AnalyticsDatePreset.TODAY -> startAndEndOfDay(calendar)
