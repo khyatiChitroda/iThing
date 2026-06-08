@@ -13,5 +13,6 @@ data class PaginationDto(
     val page: Int = 1,
     val pageSize: Int = -1,
     val sort: String = "asc",
+    val sortField: String? = null,
     val filter: Map<String, String> = emptyMap()
 )

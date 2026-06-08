@@ -8,6 +8,7 @@ data class DashboardWidgetDto(
     val title: String,
     val type: String,
     val subType: String? = null,
+    val icon: String? = null,
     val device: String? = null,
     val dashboardName: String? = null,
     val unit: String? = null,

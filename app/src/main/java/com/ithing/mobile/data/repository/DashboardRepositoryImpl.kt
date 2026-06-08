@@ -8,6 +8,7 @@ import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetDto
 import com.ithing.mobile.data.remote.dto.dashboard.DeviceDto
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardWidgetsRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.FetchEventsRequestDto
+import com.ithing.mobile.data.remote.dto.dashboard.FetchLogsAfterRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.ListRequestDto
 import com.ithing.mobile.data.remote.dto.dashboard.PaginationDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceMappingFieldDto
@@ -15,9 +16,11 @@ import com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto
 import com.ithing.mobile.data.remote.dto.reports.DeviceMappingRequestDto
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.DashboardWidget
+import com.ithing.mobile.domain.model.DashboardWidgetColorValues
 import com.ithing.mobile.domain.model.DashboardWidgetPoint
 import com.ithing.mobile.domain.model.DashboardWidgetSeries
 import com.ithing.mobile.domain.model.DashboardWidgetSource
+import com.ithing.mobile.domain.model.DashboardTelemetryResult
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
@@ -40,6 +43,24 @@ class DashboardRepositoryImpl @Inject constructor(
     private val reportsApi: ReportsApi
 ) : DashboardRepository {
     private val listRequest = ListRequestDto(page = 1, pageSize = -1, sort = "asc")
+
+    private var logsCache: LogsCacheEntry? = null
+    private var latestEventsCache: LatestEventsCacheEntry? = null
+
+    private data class LogsCacheEntry(
+        val deviceId: String,
+        val timestamp: Long,
+        val limit: Int,
+        val fetchedAtMillis: Long,
+        val logs: List<DashboardEventLogDto>
+    )
+
+    private data class LatestEventsCacheEntry(
+        val deviceId: String,
+        val lastTimeStampBucket: Long,
+        val fetchedAtMillis: Long,
+        val logs: List<DashboardEventLogDto>
+    )
 
     override suspend fun getIndustries(): Result<List<Industry>> = runCatching {
         val response = dashboardApi.getIndustries(
@@ -90,6 +111,85 @@ class DashboardRepositoryImpl @Inject constructor(
         error.printStackTrace()
     }
 
+    override suspend fun getDeviceMapping(deviceId: String): Result<DeviceMappingPayloadDto> = runCatching {
+        requireNotNull(
+            reportsApi.getDeviceMapping(DeviceMappingRequestDto(id = deviceId)).data.data
+        ) { "Device mapping not found" }
+    }.onFailure { error ->
+        println("DashboardRepository: getDeviceMapping failed ${error.message}")
+        error.printStackTrace()
+    }
+
+    override suspend fun getLogsAfter(
+        deviceId: String,
+        timestamp: Long,
+        limit: Int
+    ): Result<List<DashboardEventLogDto>> = runCatching {
+        val now = System.currentTimeMillis()
+        val cached = logsCache
+        val isCacheValid =
+            cached != null &&
+                cached.deviceId == deviceId &&
+                cached.timestamp == timestamp &&
+                cached.limit == limit &&
+                (now - cached.fetchedAtMillis) <= 30_000
+        if (isCacheValid) return@runCatching cached!!.logs
+
+        val response = dashboardApi.fetchLogsAfter(
+            FetchLogsAfterRequestDto(
+                device = deviceId,
+                timestamp = timestamp,
+                limit = limit
+            )
+        )
+        val logs = response.data.data.orEmpty()
+        logsCache = LogsCacheEntry(
+            deviceId = deviceId,
+            timestamp = timestamp,
+            limit = limit,
+            fetchedAtMillis = now,
+            logs = logs
+        )
+        logs
+    }.onFailure { error ->
+        println("DashboardRepository: getLogsAfter failed ${error.message}")
+        error.printStackTrace()
+    }
+
+    override suspend fun getLatestEvents(
+        deviceId: String,
+        lastTimeStamp: Long
+    ): Result<List<DashboardEventLogDto>> = runCatching {
+        val now = System.currentTimeMillis()
+        val bucket = lastTimeStamp / 10_000
+        val cached = latestEventsCache
+        val isCacheValid =
+            cached != null &&
+                cached.deviceId == deviceId &&
+                cached.lastTimeStampBucket == bucket &&
+                (now - cached.fetchedAtMillis) <= 10_000
+        if (isCacheValid) return@runCatching cached!!.logs
+
+        val response = dashboardApi.fetchEvents(
+            url = FETCH_EVENTS_URL,
+            request = FetchEventsRequestDto(
+                device = deviceId,
+                lastTimeStamp = lastTimeStamp
+            )
+        )
+        val logs = response.data.logs
+        latestEventsCache = LatestEventsCacheEntry(
+            deviceId = deviceId,
+            lastTimeStampBucket = bucket,
+            fetchedAtMillis = now,
+            logs = logs
+        )
+        logs
+    }.onFailure { error ->
+        println("DashboardRepository: getLatestEvents failed ${error.message}")
+        error.printStackTrace()
+    }
+
     override suspend fun getDashboardWidgets(
         customerId: String,
         deviceId: String
@@ -101,34 +201,76 @@ class DashboardRepositoryImpl @Inject constructor(
                     page = 1,
                     pageSize = -1,
                     sort = "asc",
+                    sortField = "index",
                     filter = mapOf("device" to deviceId)
                 )
             )
         )
         val widgets = response.data.list.map { it.toDomain() }
-        if (widgets.isEmpty()) {
-            return@runCatching emptyList()
-        }
-
-        val mappingPayload = requireNotNull(
-            reportsApi.getDeviceMapping(DeviceMappingRequestDto(id = deviceId)).data.data
-        ) { "Device mapping not found" }
-
-        val logs = dashboardApi.fetchEvents(
-            url = FETCH_EVENTS_URL,
-            request = FetchEventsRequestDto(
-                device = deviceId,
-                lastTimeStamp = System.currentTimeMillis()
-            )
-        ).data.logs
-
-        enrichWidgetsWithTelemetry(
-            widgets = widgets,
-            mappingPayload = mappingPayload,
-            logs = logs
-        )
+        widgets
     }.onFailure { error ->
         println("DashboardRepository: getDashboardWidgets failed ${error.message}")
+        error.printStackTrace()
+    }
+
+    override suspend fun applyDashboardTelemetry(
+        widgets: List<DashboardWidget>,
+        mappingPayload: DeviceMappingPayloadDto,
+        latestLogs: List<DashboardEventLogDto>,
+        chartLogs: List<DashboardEventLogDto>
+    ): Result<DashboardTelemetryResult> = runCatching {
+        val collatedLatestLogs = collateParsedEvents(latestLogs, mappingPayload)
+        val latestLog = collatedLatestLogs.lastOrNull()
+
+        if (latestLog != null && widgets.isNotEmpty()) {
+            val fields = widgets.first().sources.flatMap { it.fields }.distinct()
+            val keys = latestLog.values.keys
+            val matches = fields.count { it in keys }
+            println("DashboardRepository: telemetry keys matches=$matches fields=${fields.take(8)} keysSample=${keys.take(12)}")
+        }
+
+        val collatedChartLogs = collateParsedEvents(chartLogs, mappingPayload)
+
+        val enriched = widgets.map { widget ->
+            val allFields = widget.sources.flatMap { it.fields }
+            val valuesByField = allFields
+                .distinct()
+                .associateWith { field -> latestLog?.values?.get(field) ?: 0.0 }
+
+            val chartSeries = widget.sources
+                .flatMap { source -> source.fields }
+                .distinct()
+                .map { field ->
+                    DashboardWidgetSeries(
+                        label = widget.unit?.takeIf { it.isNotBlank() }?.let { "$field ($it)" } ?: field,
+                        points = collatedChartLogs.mapNotNull { log ->
+                            val value = log.values[field] ?: return@mapNotNull null
+                            DashboardWidgetPoint(
+                                timestamp = log.timestamp,
+                                label = log.label,
+                                value = value
+                            )
+                        }
+                    )
+                }
+                .filter { it.points.isNotEmpty() }
+
+            val currentValue = allFields.firstOrNull()?.let { field -> valuesByField[field] } ?: 0.0
+
+            widget.copy(
+                valuesByField = valuesByField,
+                currentValue = currentValue,
+                currentValueLabel = widget.formatValue(currentValue),
+                chartSeries = chartSeries
+            )
+        }
+
+        DashboardTelemetryResult(
+            widgets = enriched,
+            lastUpdatedAt = latestLog?.timestamp
+        )
+    }.onFailure { error ->
+        println("DashboardRepository: applyDashboardTelemetry failed ${error.message}")
         error.printStackTrace()
     }
 
@@ -160,6 +302,7 @@ class DashboardRepositoryImpl @Inject constructor(
         title = title,
         type = type,
         subType = subType,
+        icon = icon,
         deviceId = device,
         dashboardName = dashboardName,
         unit = unit,
@@ -171,25 +314,93 @@ class DashboardRepositoryImpl @Inject constructor(
         val fields = keys
             .filter { it.startsWith("field", ignoreCase = true) }
             .sorted()
-            .mapNotNull { key -> get(key)?.toFieldName() }
+            .flatMap { key -> get(key)?.toFieldNames().orEmpty() }
             .filter { it.isNotBlank() }
         if (fields.isEmpty()) return null
 
+        val icons = get("icon").toStringListOrEmpty()
+        val units = get("unit").toStringListOrEmpty()
+        val minValues = get("minValue").toDoubleListOrEmpty()
+        val maxValues = get("maxValue").toDoubleListOrEmpty()
         val minValue = get("minValue").toDoubleValueOrNull()
         val maxValue = get("maxValue").toDoubleValueOrNull()
+        val bgColor = get("bgColor").toStringValueOrNull()
+        val valueInputMode = get("valueInputMode").toStringValueOrNull()?.trim()?.lowercase()
+        val bitSelection = get("bitSelection").toIntValueOrNull()
+        val colorValues = get("colorValues").toColorValuesOrNull()
         return DashboardWidgetSource(
             fields = fields,
+            icons = icons,
+            units = units,
+            minValues = minValues,
+            maxValues = maxValues,
             minValue = minValue,
-            maxValue = maxValue 
+            maxValue = maxValue,
+            bgColor = bgColor,
+            valueInputMode = valueInputMode,
+            bitSelection = bitSelection,
+            colorValues = colorValues
         )
     }
 
-    private fun JsonElement.toFieldName(): String? =
+    private fun JsonElement.toFieldNames(): List<String> =
         when (this) {
-            is JsonArray -> firstOrNull()?.toFieldName()
+            is JsonArray -> mapNotNull { it.toStringValueOrNull() }
+            is JsonPrimitive -> listOfNotNull(contentOrNull)
+            else -> emptyList()
+        }
+
+    private fun JsonElement?.toStringValueOrNull(): String? =
+        when (this) {
+            null -> null
+            is JsonArray -> firstOrNull().toStringValueOrNull()
             is JsonPrimitive -> contentOrNull
             else -> null
         }
+
+    private fun JsonElement?.toStringListOrEmpty(): List<String> =
+        when (this) {
+            null -> emptyList()
+            is JsonArray -> mapNotNull { it.toStringValueOrNull() }.filter { it.isNotBlank() }
+            is JsonPrimitive -> listOfNotNull(contentOrNull).filter { it.isNotBlank() }
+            else -> emptyList()
+        }
+
+    private fun JsonElement?.toDoubleListOrEmpty(): List<Double?> =
+        when (this) {
+            null -> emptyList()
+            is JsonArray -> map { it.toDoubleOrNullFromAny() }
+            is JsonPrimitive -> listOf(this.toDoubleOrNullFromAny())
+            else -> emptyList()
+        }
+
+    private fun JsonElement.toDoubleOrNullFromAny(): Double? =
+        when (this) {
+            is JsonArray -> firstOrNull()?.toDoubleOrNullFromAny()
+            is JsonPrimitive -> {
+                val raw = contentOrNull?.trim().orEmpty()
+                raw.toDoubleOrNull() ?: doubleOrNull
+            }
+            else -> null
+        }
+
+    private fun JsonElement?.toIntValueOrNull(): Int? {
+        val raw = toStringValueOrNull()?.trim()
+        return raw?.toIntOrNull()
+            ?: when (this) {
+                is JsonPrimitive -> doubleOrNull?.toInt()
+                else -> null
+            }
+    }
+
+    private fun JsonElement?.toColorValuesOrNull(): DashboardWidgetColorValues? {
+        val obj = this as? JsonObject ?: return null
+        return DashboardWidgetColorValues(
+            green = obj["green"].toDoubleValueOrNull(),
+            red = obj["red"].toDoubleValueOrNull(),
+            yellow = obj["yellow"].toDoubleValueOrNull()
+        )
+    }
 
     private fun JsonElement?.toDoubleValueOrNull(): Double? =
         when (this) {
@@ -198,47 +409,6 @@ class DashboardRepositoryImpl @Inject constructor(
             is JsonPrimitive -> doubleOrNull
             else -> null
         }
-
-    private fun enrichWidgetsWithTelemetry(
-        widgets: List<DashboardWidget>,
-        mappingPayload: DeviceMappingPayloadDto,
-        logs: List<DashboardEventLogDto>
-    ): List<DashboardWidget> {
-        val collatedLogs = collateParsedEvents(logs, mappingPayload)
-        val latestLog = collatedLogs.lastOrNull()
-
-        return widgets.map { widget ->
-            val chartSeries = widget.sources
-                .flatMap { source -> source.fields }
-                .distinct()
-                .map { field ->
-                    DashboardWidgetSeries(
-                        label = widget.unit?.takeIf { it.isNotBlank() }?.let { "$field ($it)" } ?: field,
-                        points = collatedLogs.mapNotNull { log ->
-                            val value = log.values[field] ?: return@mapNotNull null
-                            DashboardWidgetPoint(
-                                timestamp = log.timestamp,
-                                label = log.label,
-                                value = value
-                            )
-                        }
-                    )
-                }
-                .filter { it.points.isNotEmpty() }
-
-            val currentValue = widget.sources
-                .asSequence()
-                .flatMap { it.fields.asSequence() }
-                .mapNotNull { field -> latestLog?.values?.get(field) }
-                .firstOrNull()
-
-            widget.copy(
-                currentValue = currentValue,
-                currentValueLabel = currentValue?.let { widget.formatValue(it) } ?: "--",
-                chartSeries = chartSeries
-            )
-        }
-    }
 
     private fun collateParsedEvents(
         logs: List<DashboardEventLogDto>,
@@ -290,7 +460,7 @@ class DashboardRepositoryImpl @Inject constructor(
     ): Map<String, Double> {
         val out = mutableMapOf<String, Double>()
         mapping.forEach { field ->
-            val registerName = field.registerName.trim()
+            val registerName = field.registerName
             if (registerName.isBlank()) return@forEach
 
             val addresses = field.canAddress.mapNotNull { address ->
@@ -314,7 +484,7 @@ class DashboardRepositoryImpl @Inject constructor(
         val slaveId = mappingPayload.slaveConfig.firstOrNull { it.slaveIdNumber == slaveIdNumber }?.slaveId
 
         mappingPayload.mapping.forEach { field ->
-            val registerName = field.registerName.trim()
+            val registerName = field.registerName
             if (registerName.isBlank()) return@forEach
             if (!field.slaveId.isNullOrBlank() && slaveId != null && field.slaveId != slaveId) return@forEach
 

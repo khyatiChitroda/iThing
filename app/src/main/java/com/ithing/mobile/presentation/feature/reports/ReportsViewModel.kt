@@ -1048,6 +1048,26 @@ class ReportsViewModel @Inject constructor(
                 devices = filteredDevices
             )
         }
+
+        if (state.selectedIndustry == null && allIndustries.isNotEmpty()) {
+            onIndustrySelected(allIndustries.first())
+            return
+        }
+
+        if (state.selectedOem == null && filteredOems.isNotEmpty()) {
+            onOemSelected(filteredOems.first())
+            return
+        }
+
+        if (state.selectedCustomer == null && filteredCustomers.isNotEmpty()) {
+            onCustomerSelected(filteredCustomers.first())
+            return
+        }
+
+        if (state.selectedDevice == null && filteredDevices.isNotEmpty()) {
+            onDeviceSelected(filteredDevices.first())
+            return
+        }
     }
 
     private fun resetAnalyticsState() {
