@@ -134,13 +134,13 @@ private fun DashboardContent(
                 contentPadding = PaddingValues(
                     start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
                     end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),
-                    top = 16.dp,
-                    bottom = 16.dp
+                    top = 12.dp,
+                    bottom = 14.dp
                 )
             ) {
                 item {
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
 
                         FilterSection(
@@ -223,30 +223,54 @@ private fun DashboardActionsSection(
     onGroupSelected: (String) -> Unit,
     onRefresh: () -> Unit
 ) {
-    IThingCard(
+    val lastUpdatedText = lastUpdatedAt?.let {
+        SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault()).format(Date(it))
+    } ?: "-"
+    val statusText = when {
+        isRefreshing -> "Refreshing"
+        errorMessage != null -> "Error"
+        !selectedCustomer || !selectedDevice -> "Select filters"
+        else -> "Ready"
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 14.dp),
-        elevation = 2
+            .padding(top = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        FlowRow(
+        Text(
+            text = "Dashboard Last Updated at $lastUpdatedText",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF0B3B92),
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(5.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .fillMaxWidth(),
+            color = Color(0xFFE8EEF6),
+            shape = RoundedCornerShape(10.dp),
+            shadowElevation = 1.dp
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                DashboardStatusSummary(
-                    lastUpdatedAt = lastUpdatedAt,
-                    isRefreshing = isRefreshing,
-                    hasSelection = selectedCustomer && selectedDevice,
-                    hasError = errorMessage != null,
+                Text(
+                    text = "Status: $statusText",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.widthIn(max = 104.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+
                 DashboardGroupSelector(
                     groups = groups,
                     selectedGroup = selectedGroup,
@@ -265,7 +289,7 @@ private fun DashboardActionsSection(
                             contentDescription = null,
                         )
                     },
-                    modifier = Modifier
+                    modifier = Modifier.widthIn(min = 112.dp)
                 )
             }
         }

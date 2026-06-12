@@ -1,6 +1,9 @@
 package com.ithing.mobile.presentation.feature.dashboard
 
 import com.ithing.mobile.core.session.SessionManager
+import com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto
+import com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto
+import com.ithing.mobile.domain.model.DashboardTelemetryResult
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.DashboardWidget
 import com.ithing.mobile.domain.model.Device
@@ -230,6 +233,34 @@ class DashboardViewModelTest {
             lastRequestedDeviceId = deviceId
 
             return Result.success(fakeWidgets)
+        }
+
+        override suspend fun getDeviceMapping(deviceId: String): Result<DeviceMappingPayloadDto> {
+            return Result.success(DeviceMappingPayloadDto())
+        }
+
+        override suspend fun getLatestEvents(
+            deviceId: String,
+            lastTimeStamp: Long
+        ): Result<List<DashboardEventLogDto>> {
+            return Result.success(emptyList())
+        }
+
+        override suspend fun getLogsAfter(
+            deviceId: String,
+            timestamp: Long,
+            limit: Int
+        ): Result<List<DashboardEventLogDto>> {
+            return Result.success(emptyList())
+        }
+
+        override suspend fun applyDashboardTelemetry(
+            widgets: List<DashboardWidget>,
+            mappingPayload: DeviceMappingPayloadDto,
+            latestLogs: List<DashboardEventLogDto>,
+            chartLogs: List<DashboardEventLogDto>
+        ): Result<DashboardTelemetryResult> {
+            return Result.success(DashboardTelemetryResult(widgets = widgets))
         }
     }
 }

@@ -235,7 +235,10 @@ class DashboardRepositoryImpl @Inject constructor(
             val allFields = widget.sources.flatMap { it.fields }
             val valuesByField = allFields
                 .distinct()
-                .associateWith { field -> latestLog?.values?.get(field) ?: 0.0 }
+                .mapNotNull { field ->
+                    latestLog?.values?.get(field)?.let { value -> field to value }
+                }
+                .toMap()
 
             val chartSeries = widget.sources
                 .flatMap { source -> source.fields }
@@ -255,12 +258,12 @@ class DashboardRepositoryImpl @Inject constructor(
                 }
                 .filter { it.points.isNotEmpty() }
 
-            val currentValue = allFields.firstOrNull()?.let { field -> valuesByField[field] } ?: 0.0
+            val currentValue = allFields.firstOrNull()?.let { field -> valuesByField[field] }
 
             widget.copy(
                 valuesByField = valuesByField,
                 currentValue = currentValue,
-                currentValueLabel = widget.formatValue(currentValue),
+                currentValueLabel = currentValue?.let { widget.formatValue(it) },
                 chartSeries = chartSeries
             )
         }
@@ -470,7 +473,7 @@ class DashboardRepositoryImpl @Inject constructor(
             }
             val rawValue = addresses.joinToString(separator = "") { (frame, _) -> rawData[frame].orEmpty() }
             val numeric = rawValue.toDoubleOrNull() ?: 0.0
-            out[registerName] = applyScaling(numeric, field)
+            out.putRegisterValue(registerName, applyScaling(numeric, field))
         }
         return out
     }
@@ -509,10 +512,21 @@ class DashboardRepositoryImpl @Inject constructor(
                 }
             } ?: return@forEach
 
-            out[registerName] = applyScaling(value, field)
+            out.putRegisterValue(registerName, applyScaling(value, field))
         }
 
         return out
+    }
+
+    private fun MutableMap<String, Double>.putRegisterValue(
+        registerName: String,
+        value: Double
+    ) {
+        this[registerName] = value
+        val trimmedRegisterName = registerName.trim()
+        if (trimmedRegisterName.isNotEmpty() && trimmedRegisterName != registerName) {
+            putIfAbsent(trimmedRegisterName, value)
+        }
     }
 
     private fun applyScaling(
