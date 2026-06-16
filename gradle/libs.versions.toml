@@ -29,6 +29,8 @@ mockito-kotlin = "5.1.0"
 runtimeVersion = "1.10.6"
 coreSplash = "1.0.1"
 kizitonwoseCalendar = "2.6.0"
+foundationLayoutVersion = "1.11.2"
+iconsLucide = "1.1.0"
 
 
 [libraries]
@@ -37,6 +39,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
@@ -81,6 +84,8 @@ mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "
 androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtimeVersion" }
 core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplash" }
 kizitonwose-calendar-compose = { group = "com.kizitonwose.calendar", name = "compose", version.ref = "kizitonwoseCalendar" }
+androidx-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayoutVersion" }
+icons-lucide = { group = "com.composables", name = "icons-lucide", version.ref = "iconsLucide" }
 
 
 [plugins]

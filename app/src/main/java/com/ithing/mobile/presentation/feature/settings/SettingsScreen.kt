@@ -18,17 +18,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -129,7 +129,7 @@ fun getSettingsItems(): List<SettingsItem> {
             id = "logout",
             title = "Logout",
             description = "Sign out of your account",
-            icon = Icons.Default.Logout,
+            icon = Icons.AutoMirrored.Filled.Logout,
             category = SettingsCategory.ABOUT
         )
     )
@@ -368,7 +368,7 @@ private fun SettingsItemRow(
             
             // Arrow Icon
             Icon(
-                imageVector = Icons.Default.ArrowForwardIos,
+                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
@@ -376,7 +376,7 @@ private fun SettingsItemRow(
         }
         
         if (showDivider) {
-            Divider(
+            HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 thickness = 1.dp,
                 modifier = Modifier.padding(start = 40.dp)

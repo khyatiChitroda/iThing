@@ -296,7 +296,6 @@ class ReportsRepositoryImpl @Inject constructor(
             is JsonPrimitive -> value.contentOrNull ?: ""
             is JsonObject -> value.toString()
             is JsonArray -> value.toString()
-            else -> value.toString()
         }
     }
 }

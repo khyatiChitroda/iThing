@@ -1,6 +1,9 @@
 package com.ithing.mobile.presentation.feature.dashboard
 
 import com.ithing.mobile.core.session.SessionManager
+import com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto
+import com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto
+import com.ithing.mobile.domain.model.DashboardTelemetryResult
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.DashboardWidget
 import com.ithing.mobile.domain.model.Device
@@ -48,7 +51,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `loadFilters populates all filter lists`() = runTest {
+    fun `loadFilters auto selects first filter chain`() = runTest {
         val viewModel = DashboardViewModel(
             logoutUseCase = logoutUseCase,
             dashboardRepository = dashboardRepository,
@@ -59,9 +62,10 @@ class DashboardViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(2, state.industries.size)
-        assertTrue(state.oems.isEmpty())
-        assertTrue(state.customers.isEmpty())
-        assertTrue(state.devices.isEmpty())
+        assertEquals("Food", state.selectedIndustry?.name)
+        assertEquals("OEM Food", state.selectedOem?.name)
+        assertEquals("Customer A", state.selectedCustomer?.name)
+        assertEquals("Device 1", state.selectedDevice?.name)
     }
 
     @Test
@@ -148,6 +152,9 @@ class DashboardViewModelTest {
         )
         advanceUntilIdle()
 
+        viewModel.onCustomerSelected(null)
+        advanceUntilIdle()
+
         viewModel.refreshDashboard()
         advanceUntilIdle()
 
@@ -230,6 +237,34 @@ class DashboardViewModelTest {
             lastRequestedDeviceId = deviceId
 
             return Result.success(fakeWidgets)
+        }
+
+        override suspend fun getDeviceMapping(deviceId: String): Result<DeviceMappingPayloadDto> {
+            return Result.success(DeviceMappingPayloadDto())
+        }
+
+        override suspend fun getLatestEvents(
+            deviceId: String,
+            lastTimeStamp: Long
+        ): Result<List<DashboardEventLogDto>> {
+            return Result.success(emptyList())
+        }
+
+        override suspend fun getLogsAfter(
+            deviceId: String,
+            timestamp: Long,
+            limit: Int
+        ): Result<List<DashboardEventLogDto>> {
+            return Result.success(emptyList())
+        }
+
+        override suspend fun applyDashboardTelemetry(
+            widgets: List<DashboardWidget>,
+            mappingPayload: DeviceMappingPayloadDto,
+            latestLogs: List<DashboardEventLogDto>,
+            chartLogs: List<DashboardEventLogDto>
+        ): Result<DashboardTelemetryResult> {
+            return Result.success(DashboardTelemetryResult(widgets = widgets))
         }
     }
 }

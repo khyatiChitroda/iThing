@@ -106,7 +106,7 @@ class ReportsViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository,
     private val reportsRepository: ReportsRepository,
     private val sessionManager: SessionManager,
-    @ApplicationContext private val appContext: Context
+    @param:ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     // These are ONLY added to Summary and Schedule reports
@@ -1047,6 +1047,26 @@ class ReportsViewModel @Inject constructor(
                 customers = filteredCustomers,
                 devices = filteredDevices
             )
+        }
+
+        if (state.selectedIndustry == null && allIndustries.isNotEmpty()) {
+            onIndustrySelected(allIndustries.first())
+            return
+        }
+
+        if (state.selectedOem == null && filteredOems.isNotEmpty()) {
+            onOemSelected(filteredOems.first())
+            return
+        }
+
+        if (state.selectedCustomer == null && filteredCustomers.isNotEmpty()) {
+            onCustomerSelected(filteredCustomers.first())
+            return
+        }
+
+        if (state.selectedDevice == null && filteredDevices.isNotEmpty()) {
+            onDeviceSelected(filteredDevices.first())
+            return
         }
     }
 

@@ -9,12 +9,17 @@ import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.usecase.LogoutUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import javax.inject.Inject
+import java.time.LocalDate
+import java.time.ZoneId
 
 data class DashboardUiState(
     val industries: List<Industry> = emptyList(),
@@ -40,6 +45,10 @@ class DashboardViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository,
     private val sessionManager: com.ithing.mobile.core.session.SessionManager
 ) : ViewModel() {
+    private var autoRefreshJob: Job? = null
+    private var cachedWidgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget> = emptyList()
+    private var cachedMapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto? = null
+    private var cachedChartLogs: List<com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto> = emptyList()
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
@@ -47,7 +56,7 @@ class DashboardViewModel @Inject constructor(
         loadInitialFilters()
     }
 
-    fun onIndustrySelected(industry: Industry?) {
+    fun onIndustrySelected(industry: Industry?, autoSelectChildren: Boolean = false) {
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -66,11 +75,11 @@ class DashboardViewModel @Inject constructor(
                     isLoading = true
                 )
             }
-            loadOems(industry?.name)
+            loadOems(industry?.name, autoSelectChildren = autoSelectChildren)
         }
     }
 
-    fun onOemSelected(oem: Oem?) {
+    fun onOemSelected(oem: Oem?, autoSelectChildren: Boolean = false) {
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -87,11 +96,11 @@ class DashboardViewModel @Inject constructor(
                     isLoading = true
                 )
             }
-            loadCustomers(oem?.id)
+            loadCustomers(oem?.id, autoSelectChildren = autoSelectChildren)
         }
     }
 
-    fun onCustomerSelected(customer: Customer?) {
+    fun onCustomerSelected(customer: Customer?, autoSelectChildren: Boolean = false) {
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -106,7 +115,7 @@ class DashboardViewModel @Inject constructor(
                     isLoading = true
                 )
             }
-            loadDevices(customer?.id)
+            loadDevices(customer?.id, autoSelectChildren = autoSelectChildren)
         }
     }
 
@@ -121,6 +130,14 @@ class DashboardViewModel @Inject constructor(
                 errorMessage = null
             )
         }
+        cachedWidgetsConfig = emptyList()
+        cachedMapping = null
+        cachedChartLogs = emptyList()
+
+        val customerSelected = _uiState.value.selectedCustomer != null
+        if (device != null && customerSelected && !_uiState.value.isRefreshing) {
+            refreshDashboard()
+        }
     }
 
     fun onGroupSelected(group: String) {
@@ -133,33 +150,58 @@ class DashboardViewModel @Inject constructor(
             val deviceId = _uiState.value.selectedDevice?.id
             if (customerId != null && deviceId != null) {
                 _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
-                dashboardRepository.getDashboardWidgets(customerId, deviceId)
-                    .onSuccess { widgets ->
-                        val groups = listOf("All") + widgets.mapNotNull { it.dashboardName }
-                            .distinct()
-                            .sorted()
-                        val selectedGroup = _uiState.value.selectedGroup
-                            .takeIf { it in groups }
-                            ?: "All"
-                        _uiState.update {
-                            it.copy(
-                                widgets = widgets,
-                                availableGroups = groups,
-                                selectedGroup = selectedGroup,
-                                lastUpdatedAt = System.currentTimeMillis(),
-                                isRefreshing = false,
-                                errorMessage = null
-                            )
-                        }
+
+                runCatching {
+                    val widgetsConfig = dashboardRepository.getDashboardWidgets(customerId, deviceId).getOrThrow()
+                    cachedWidgetsConfig = widgetsConfig
+
+                    val mapping = dashboardRepository.getDeviceMapping(deviceId).getOrThrow()
+                    cachedMapping = mapping
+
+                    cachedChartLogs = dashboardRepository.getLogsAfter(
+                        deviceId = deviceId,
+                        timestamp = startOfDayMillis(),
+                        limit = 500
+                    ).getOrDefault(emptyList())
+
+                    val latestLogs = dashboardRepository.getLatestEvents(
+                        deviceId = deviceId,
+                        lastTimeStamp = System.currentTimeMillis()
+                    ).getOrDefault(emptyList())
+
+                    val telemetry = dashboardRepository.applyDashboardTelemetry(
+                        widgets = widgetsConfig,
+                        mappingPayload = mapping,
+                        latestLogs = latestLogs,
+                        chartLogs = cachedChartLogs
+                    ).getOrThrow()
+
+                    telemetry
+                }.onSuccess { telemetry ->
+                    val groups = listOf("All") + telemetry.widgets.mapNotNull { it.dashboardName }
+                        .distinct()
+                        .sorted()
+                    val selectedGroup = _uiState.value.selectedGroup
+                        .takeIf { it in groups }
+                        ?: "All"
+                    _uiState.update {
+                        it.copy(
+                            widgets = telemetry.widgets,
+                            availableGroups = groups,
+                            selectedGroup = selectedGroup,
+                            lastUpdatedAt = telemetry.lastUpdatedAt,
+                            isRefreshing = false,
+                            errorMessage = null
+                        )
                     }
-                    .onFailure { ex ->
-                        _uiState.update {
-                            it.copy(
-                                isRefreshing = false,
-                                errorMessage = ex.message ?: "Failed to load widgets"
-                            )
-                        }
+                }.onFailure { ex ->
+                    _uiState.update {
+                        it.copy(
+                            isRefreshing = false,
+                            errorMessage = ex.message ?: "Failed to load widgets"
+                        )
                     }
+                }
             } else {
                 _uiState.update {
                     it.copy(
@@ -173,6 +215,71 @@ class DashboardViewModel @Inject constructor(
             }
         }
     }
+
+    fun startAutoRefresh(intervalMs: Long = 10_000L) {
+        stopAutoRefresh()
+        autoRefreshJob = viewModelScope.launch {
+            while (isActive) {
+                val deviceId = _uiState.value.selectedDevice?.id
+                val mapping = cachedMapping
+                val widgetsConfig = cachedWidgetsConfig
+                val canRefresh =
+                    deviceId != null &&
+                        mapping != null &&
+                        widgetsConfig.isNotEmpty() &&
+                        _uiState.value.selectedCustomer != null &&
+                        !_uiState.value.isRefreshing
+
+                if (canRefresh) {
+                    refreshTelemetryOnly(
+                        deviceId = deviceId!!,
+                        mapping = mapping,
+                        widgetsConfig = widgetsConfig,
+                        chartLogs = cachedChartLogs
+                    )
+                }
+                delay(intervalMs)
+            }
+        }
+    }
+
+    fun stopAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = null
+    }
+
+    private suspend fun refreshTelemetryOnly(
+        deviceId: String,
+        mapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto,
+        widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>,
+        chartLogs: List<com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto>
+    ) {
+        val latestLogs = dashboardRepository.getLatestEvents(
+            deviceId = deviceId,
+            lastTimeStamp = System.currentTimeMillis()
+        ).getOrDefault(emptyList())
+
+        dashboardRepository.applyDashboardTelemetry(
+            widgets = widgetsConfig,
+            mappingPayload = mapping,
+            latestLogs = latestLogs,
+            chartLogs = chartLogs
+        ).onSuccess { telemetry ->
+            _uiState.update {
+                it.copy(
+                    widgets = telemetry.widgets,
+                    lastUpdatedAt = telemetry.lastUpdatedAt,
+                    errorMessage = null
+                )
+            }
+        }
+    }
+
+    private fun startOfDayMillis(): Long =
+        LocalDate.now(ZoneId.systemDefault())
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
@@ -210,6 +317,9 @@ class DashboardViewModel @Inject constructor(
                             errorMessage = null
                         )
                     }
+                    if (_uiState.value.selectedIndustry == null && industries.isNotEmpty()) {
+                        onIndustrySelected(industries.first(), autoSelectChildren = true)
+                    }
                 }
                 .onFailure { error ->
                     _uiState.update {
@@ -222,7 +332,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadOems(industry: String?) {
+    private suspend fun loadOems(industry: String?, autoSelectChildren: Boolean = false) {
         if (industry.isNullOrBlank()) {
             _uiState.update { it.copy(oems = emptyList(), customers = emptyList(), devices = emptyList(), isLoading = false) }
             return
@@ -239,6 +349,9 @@ class DashboardViewModel @Inject constructor(
                         errorMessage = null
                     )
                 }
+                if (autoSelectChildren && _uiState.value.selectedOem == null && oems.isNotEmpty()) {
+                    onOemSelected(oems.first(), autoSelectChildren = true)
+                }
             }
             .onFailure { error ->
                 _uiState.update {
@@ -253,7 +366,7 @@ class DashboardViewModel @Inject constructor(
             }
     }
 
-    private suspend fun loadCustomers(oemId: String?) {
+    private suspend fun loadCustomers(oemId: String?, autoSelectChildren: Boolean = false) {
         if (oemId.isNullOrBlank()) {
             _uiState.update { it.copy(customers = emptyList(), devices = emptyList(), isLoading = false) }
             return
@@ -269,6 +382,9 @@ class DashboardViewModel @Inject constructor(
                         errorMessage = null
                     )
                 }
+                if (autoSelectChildren && _uiState.value.selectedCustomer == null && customers.isNotEmpty()) {
+                    onCustomerSelected(customers.first(), autoSelectChildren = true)
+                }
             }
             .onFailure { error ->
                 _uiState.update {
@@ -282,7 +398,7 @@ class DashboardViewModel @Inject constructor(
             }
     }
 
-    private suspend fun loadDevices(customerId: String?) {
+    private suspend fun loadDevices(customerId: String?, autoSelectChildren: Boolean = false) {
         if (customerId.isNullOrBlank()) {
             _uiState.update { it.copy(devices = emptyList(), isLoading = false) }
             return
@@ -296,6 +412,9 @@ class DashboardViewModel @Inject constructor(
                         isLoading = false,
                         errorMessage = null
                     )
+                }
+                if (autoSelectChildren && _uiState.value.selectedDevice == null && devices.isNotEmpty()) {
+                    onDeviceSelected(devices.first())
                 }
             }
             .onFailure { error ->
