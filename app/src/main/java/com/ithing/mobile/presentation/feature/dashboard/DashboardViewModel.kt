@@ -2,7 +2,6 @@ package com.ithing.mobile.presentation.feature.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import android.util.Log
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
@@ -46,7 +45,6 @@ class DashboardViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository,
     private val sessionManager: com.ithing.mobile.core.session.SessionManager
 ) : ViewModel() {
-    private val tag = "DashboardViewModel"
     private var autoRefreshJob: Job? = null
     private var cachedWidgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget> = emptyList()
     private var cachedMapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto? = null
@@ -180,7 +178,6 @@ class DashboardViewModel @Inject constructor(
 
                     telemetry
                 }.onSuccess { telemetry ->
-                    logWidgetDump(telemetry.widgets)
                     val groups = listOf("All") + telemetry.widgets.mapNotNull { it.dashboardName }
                         .distinct()
                         .sorted()
@@ -275,20 +272,7 @@ class DashboardViewModel @Inject constructor(
                     errorMessage = null
                 )
             }
-            logTelemetryPulse(deviceId = deviceId, lastUpdatedAt = telemetry.lastUpdatedAt, widgets = telemetry.widgets)
         }
-    }
-
-    private fun logTelemetryPulse(
-        deviceId: String,
-        lastUpdatedAt: Long?,
-        widgets: List<com.ithing.mobile.domain.model.DashboardWidget>
-    ) {
-        val samples = widgets
-            .sortedBy { it.index ?: Int.MAX_VALUE }
-            .take(3)
-            .joinToString(separator = " | ") { w -> "${w.title}:${w.currentValueLabel ?: w.currentValue}" }
-        Log.d(tag, "Telemetry tick device=$deviceId updatedAt=$lastUpdatedAt samples=$samples")
     }
 
     private fun startOfDayMillis(): Long =
@@ -296,32 +280,6 @@ class DashboardViewModel @Inject constructor(
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
-
-    private fun logWidgetDump(widgets: List<com.ithing.mobile.domain.model.DashboardWidget>) {
-        if (widgets.isEmpty()) {
-            Log.d(tag, "Dashboard widgets: empty")
-            return
-        }
-        Log.d(tag, "Dashboard widgets (${widgets.size}):")
-        widgets
-            .sortedBy { it.index ?: Int.MAX_VALUE }
-            .forEach { widget ->
-                val fields = widget.sources.flatMap { it.fields }.distinct()
-                val source0 = widget.sources.firstOrNull()
-                val sourcesDump = widget.sources.mapIndexed { index, source ->
-                    "s$index fields=${source.fields} icons=${source.icons} units=${source.units}"
-                }.joinToString(separator = " ")
-                val valuesDump = widget.valuesByField.entries
-                    .take(6)
-                    .joinToString(separator = ",") { (k, v) -> "$k=${String.format(java.util.Locale.US, "%.2f", v)}" }
-                Log.d(
-                    tag,
-                    "idx=${widget.index} title=${widget.title} type=${widget.type} subType=${widget.subType} group=${widget.dashboardName} icon=${widget.icon} " +
-                        "fields=$fields sources=[$sourcesDump] values=[$valuesDump] min=${source0?.minValue} max=${source0?.maxValue} bg=${source0?.bgColor} " +
-                        "mode=${source0?.valueInputMode} bit=${source0?.bitSelection} colors=${source0?.colorValues}"
-                )
-            }
-    }
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }

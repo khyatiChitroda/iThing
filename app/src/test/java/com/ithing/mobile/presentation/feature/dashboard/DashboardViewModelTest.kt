@@ -51,7 +51,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `loadFilters populates all filter lists`() = runTest {
+    fun `loadFilters auto selects first filter chain`() = runTest {
         val viewModel = DashboardViewModel(
             logoutUseCase = logoutUseCase,
             dashboardRepository = dashboardRepository,
@@ -62,9 +62,10 @@ class DashboardViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(2, state.industries.size)
-        assertTrue(state.oems.isEmpty())
-        assertTrue(state.customers.isEmpty())
-        assertTrue(state.devices.isEmpty())
+        assertEquals("Food", state.selectedIndustry?.name)
+        assertEquals("OEM Food", state.selectedOem?.name)
+        assertEquals("Customer A", state.selectedCustomer?.name)
+        assertEquals("Device 1", state.selectedDevice?.name)
     }
 
     @Test
@@ -149,6 +150,9 @@ class DashboardViewModelTest {
             dashboardRepository = dashboardRepository,
             sessionManager = sessionManager
         )
+        advanceUntilIdle()
+
+        viewModel.onCustomerSelected(null)
         advanceUntilIdle()
 
         viewModel.refreshDashboard()

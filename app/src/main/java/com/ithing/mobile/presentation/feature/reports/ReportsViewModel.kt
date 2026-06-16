@@ -106,7 +106,7 @@ class ReportsViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository,
     private val reportsRepository: ReportsRepository,
     private val sessionManager: SessionManager,
-    @ApplicationContext private val appContext: Context
+    @param:ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     // These are ONLY added to Summary and Schedule reports

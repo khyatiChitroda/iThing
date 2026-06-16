@@ -1,5 +1,7 @@
 package com.ithing.mobile.presentation.feature.dashboard
 
+import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Bolt
@@ -53,6 +56,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +76,17 @@ import com.ithing.mobile.presentation.theme.LightGrayBg
 import kotlin.math.roundToInt
 import kotlin.math.cos
 import kotlin.math.sin
+
+private val DashboardWidgetCardShape = RoundedCornerShape(16.dp)
+
+private fun Modifier.dashboardWidgetCardShadow(): Modifier =
+    this.shadow(
+        elevation = 12.dp,
+        shape = DashboardWidgetCardShape,
+        clip = false,
+        ambientColor = Color(0x1A000000),
+        spotColor = Color(0x26000000)
+    )
 
 private data class WidgetRendererKey(
     val type: String,
@@ -233,7 +249,7 @@ private fun DashboardMetricGrid(
     val rows = remember(widgets) {
         fun span(widget: DashboardWidget): Int {
             val type = widget.type.trim().lowercase()
-            return if (type == "comparison" || type == "gauge") 2 else 1
+            return if (widget.isCompositeStyleWidget() || type == "comparison" || type == "gauge") 2 else 1
         }
 
         val out = mutableListOf<List<DashboardWidget>>()
@@ -288,6 +304,11 @@ private fun DashboardMetricTile(
     val key = rendererKey(widget)
     val palette = WidgetSectionPalettes[(widget.index ?: 0).mod(WidgetSectionPalettes.size)]
 
+    if (widget.isCompositeStyleWidget()) {
+        DashboardCompositeCard(widget = widget)
+        return
+    }
+
     when (key.type) {
         "cards" -> DashboardCardTile(widget = widget)
         "comparison" -> {
@@ -328,6 +349,47 @@ private fun DashboardGaugeTile(widget: DashboardWidget) {
         )
         return
     }
+    if (widget.isSemiCircleGauge(subType)) {
+        DashboardSemiCircleGaugeTile(
+            title = widget.title,
+            valueText = value.formatDashboardValue(widget.unit),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
+    if (widget.isPrimaryColorGauge(subType)) {
+        DashboardPrimaryColorGaugeTile(
+            title = widget.title,
+            value = value,
+            unit = widget.unit.orEmpty(),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
+    if (widget.isHorizontalBarGauge(subType)) {
+        DashboardHorizontalBarGaugeTile(
+            title = widget.title,
+            valueText = value.formatDashboardValue(widget.unit),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
+    if (widget.isVerticalBarGauge(subType)) {
+        DashboardVerticalBarGaugeTile(
+            title = widget.title,
+            valueText = value.formatDashboardValue(widget.unit),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
     if (subType == "spedo_meter_with_arch") {
         DashboardArchSpeedometerTile(
             title = widget.title,
@@ -364,10 +426,12 @@ private fun DashboardGaugeTile(widget: DashboardWidget) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -387,13 +451,20 @@ private fun DashboardGaugeTile(widget: DashboardWidget) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            SegmentedSpeedometerGauge(
-                percent = percent,
-                colors = colors,
-                arcsLength = arcsLength,
-                valueText = value.formatDashboardValue(widget.unit),
-                arcPaddingFraction = if (subType == "spedo_meter_with_arch_color") 0.045f else 0.02f
-            )
+            if (subType == "speedometer") {
+                TickSpeedometerGauge(
+                    percent = percent,
+                    valueText = value.formatDashboardValue(widget.unit)
+                )
+            } else {
+                SegmentedSpeedometerGauge(
+                    percent = percent,
+                    colors = colors,
+                    arcsLength = arcsLength,
+                    valueText = value.formatDashboardValue(widget.unit),
+                    arcPaddingFraction = if (subType == "spedo_meter_with_arch_color") 0.045f else 0.02f
+                )
+            }
 
             Row(
                 modifier = Modifier
@@ -419,6 +490,632 @@ private fun DashboardGaugeTile(widget: DashboardWidget) {
 }
 
 @Composable
+private fun DashboardSemiCircleGaugeTile(
+    title: String,
+    valueText: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            SemiCircleGaugeArc(
+                percent = percent,
+                valueText = valueText,
+                minText = minText,
+                maxText = maxText
+            )
+        }
+    }
+}
+
+@Composable
+private fun SemiCircleGaugeArc(
+    percent: Float,
+    valueText: String,
+    minText: String,
+    maxText: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(154.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = 28f
+            val radius = (size.minDimension / 2f) - stroke - 4f
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.84f)
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val topLeft = androidx.compose.ui.geometry.Offset(
+                center.x - radius,
+                center.y - radius
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f)
+
+            drawArc(
+                color = Color(0xFFE5E5E5),
+                startAngle = startAngle,
+                sweepAngle = sweepTotal,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Butt)
+            )
+
+            drawArc(
+                color = Color(0xFF1E3A8A),
+                startAngle = startAngle,
+                sweepAngle = sweepTotal * percent.coerceIn(0f, 1f),
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Butt)
+            )
+        }
+
+        Text(
+            text = valueText,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 24.dp),
+            style = MaterialTheme.typography.titleLarge,
+            color = Color(0xFF374151),
+            fontWeight = FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 48.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = minText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = maxText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+private fun DashboardWidget.isSemiCircleGauge(subType: String): Boolean {
+    val normalizedTitle = title.trim().lowercase()
+    return subType in setOf(
+        "semi_circle",
+        "semi_circle_gauge",
+        "semicircle",
+        "semicircle_gauge",
+        "semi-circle",
+        "semi-circle-gauge"
+    ) || "semi circle" in normalizedTitle
+}
+
+@Composable
+private fun DashboardPrimaryColorGaugeTile(
+    title: String,
+    value: Double?,
+    unit: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            PrimaryColorDialGauge(
+                percent = percent,
+                valueText = value?.formatForCard(decimals = 0) ?: "--",
+                unit = unit,
+                minText = minText,
+                maxText = maxText
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrimaryColorDialGauge(
+    percent: Float,
+    valueText: String,
+    unit: String,
+    minText: String,
+    maxText: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(230.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(
+            modifier = Modifier
+                .size(218.dp)
+                .align(Alignment.Center)
+        ) {
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+            val radius = size.minDimension / 2f - 6f
+            val bandRadius = radius * 0.70f
+            val bandStroke = radius * 0.22f
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val dialDark = Color(0xFF17172B)
+            val ringDark = Color(0xFF0D1832)
+            val ringAccent = Color(0xFF1A2746)
+            val bandGray = Color(0xFFAEB1B8)
+            val bandYellow = Color(0xFFE3D171)
+            val needleOrange = Color(0xFFFF9800)
+
+            drawCircle(color = ringDark, radius = radius, center = center)
+            drawCircle(color = ringAccent, radius = radius * 0.94f, center = center)
+            drawCircle(color = dialDark, radius = radius * 0.88f, center = center)
+
+            val arcTopLeft = androidx.compose.ui.geometry.Offset(
+                center.x - bandRadius,
+                center.y - bandRadius
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(bandRadius * 2f, bandRadius * 2f)
+            drawArc(
+                color = bandGray,
+                startAngle = startAngle,
+                sweepAngle = sweepTotal * 0.45f,
+                useCenter = false,
+                topLeft = arcTopLeft,
+                size = arcSize,
+                style = Stroke(width = bandStroke, cap = StrokeCap.Butt)
+            )
+            drawArc(
+                color = bandYellow,
+                startAngle = startAngle + sweepTotal * 0.45f,
+                sweepAngle = sweepTotal * 0.55f,
+                useCenter = false,
+                topLeft = arcTopLeft,
+                size = arcSize,
+                style = Stroke(width = bandStroke, cap = StrokeCap.Butt)
+            )
+
+            val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.rgb(214, 218, 226)
+                textAlign = Paint.Align.CENTER
+                textSize = 11f * density
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            listOf(20 to 180f, 40 to 225f, 60 to 270f, 80 to 360f).forEach { (label, angleDeg) ->
+                val angle = Math.toRadians(angleDeg.toDouble())
+                val outer = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(angle) * (bandRadius + bandStroke * 0.46f)).toFloat(),
+                    y = center.y + (sin(angle) * (bandRadius + bandStroke * 0.46f)).toFloat()
+                )
+                val inner = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(angle) * (bandRadius - bandStroke * 0.46f)).toFloat(),
+                    y = center.y + (sin(angle) * (bandRadius - bandStroke * 0.46f)).toFloat()
+                )
+                drawLine(
+                    color = Color(0xFFE6E8EE),
+                    start = inner,
+                    end = outer,
+                    strokeWidth = 2f,
+                    cap = StrokeCap.Round
+                )
+
+                val labelPoint = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(angle) * (bandRadius - bandStroke * 0.92f)).toFloat(),
+                    y = center.y + (sin(angle) * (bandRadius - bandStroke * 0.92f)).toFloat()
+                )
+                drawContext.canvas.nativeCanvas.drawText(
+                    label.toString(),
+                    labelPoint.x,
+                    labelPoint.y + tickPaint.textSize / 3f,
+                    tickPaint
+                )
+            }
+
+            val needleAngle = Math.toRadians(
+                (startAngle + percent.coerceIn(0f, 1f) * sweepTotal).toDouble()
+            )
+            val needleLen = bandRadius + bandStroke * 0.16f
+            val needleTip = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(needleAngle) * needleLen).toFloat(),
+                y = center.y + (sin(needleAngle) * needleLen).toFloat()
+            )
+            val baseAngle = needleAngle + Math.PI / 2.0
+            val baseHalfWidth = 10f
+            val baseStart = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y + (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val baseEnd = androidx.compose.ui.geometry.Offset(
+                x = center.x - (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y - (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val needlePath = Path().apply {
+                moveTo(needleTip.x, needleTip.y)
+                lineTo(baseStart.x, baseStart.y)
+                lineTo(baseEnd.x, baseEnd.y)
+                close()
+            }
+            drawPath(path = needlePath, color = needleOrange)
+            drawCircle(color = Color(0xFF31415F), radius = 13f, center = center)
+            drawCircle(color = needleOrange, radius = 8f, center = center)
+        }
+
+        Text(
+            text = unit.toPrimaryGaugeUnitLabel(),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 28.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFC6CBD6),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 60.dp)
+                .background(Color(0xFF2A241B), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFFD59B1F), RoundedCornerShape(4.dp))
+                .padding(horizontal = 10.dp, vertical = 1.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = valueText,
+                style = MaterialTheme.typography.titleLarge,
+                color = Color(0xFFFFC928),
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 42.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = minText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = maxText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+private fun DashboardWidget.isPrimaryColorGauge(subType: String): Boolean {
+    val normalizedTitle = title.trim().lowercase()
+    return subType in setOf(
+        "primary_color",
+        "primary_color_gauge",
+        "primary-color",
+        "primary-color-gauge"
+    ) || "primary color" in normalizedTitle
+}
+
+private fun String.toPrimaryGaugeUnitLabel(): String {
+    val compact = trim()
+    return when {
+        compact.isBlank() -> ""
+        compact.startsWith("°") && compact.length > 1 -> compact.first() + " " + compact.drop(1).trim()
+        else -> compact
+    }
+}
+
+@Composable
+private fun DashboardHorizontalBarGaugeTile(
+    title: String,
+    valueText: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(126.dp)
+            ) {
+                HorizontalSegmentedBar(
+                    percent = percent,
+                    segmentColors = CombinationBarSegmentColors,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(78.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(y = 16.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = minText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF223461),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = maxText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF223461),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Text(
+                    text = valueText,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(top = 4.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF374151),
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardVerticalBarGaugeTile(
+    title: String,
+    valueText: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(218.dp)
+            ) {
+                SingleVerticalSegmentedBar(
+                    percent = percent,
+                    segmentColors = CombinationBarSegmentColors,
+                    minText = minText,
+                    maxText = maxText,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 20.dp)
+                )
+
+                Text(
+                    text = valueText,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 26.dp, bottom = 8.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color(0xFF223461),
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SingleVerticalSegmentedBar(
+    percent: Float,
+    segmentColors: List<Color>,
+    minText: String,
+    maxText: String,
+    modifier: Modifier = Modifier
+) {
+    val barHeight = 190.dp
+    val reversedPercent = 1f - percent.coerceIn(0f, 1f)
+
+    Box(
+        modifier = modifier
+            .width(132.dp)
+            .height(210.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(48.dp)
+                .height(barHeight)
+                .clip(RoundedCornerShape(999.dp))
+                .border(8.dp, Color(0xFFCBD5E1), RoundedCornerShape(999.dp))
+                .background(Color(0xFFE2E8F0), RoundedCornerShape(999.dp))
+        ) {
+            segmentColors.asReversed().forEach { color ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(color)
+                )
+            }
+        }
+
+        Canvas(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(72.dp)
+                .height(barHeight)
+        ) {
+            val pointerHalfHeight = 12.dp.toPx()
+            val y = (barHeight.toPx() * reversedPercent)
+                .coerceIn(pointerHalfHeight, barHeight.toPx() - pointerHalfHeight)
+            val x = 54f
+            val path = Path().apply {
+                moveTo(x, y)
+                lineTo(x + 16f, y - 12f)
+                lineTo(x + 16f, y + 12f)
+                close()
+            }
+            drawPath(path = path, color = Color(0xFF4B5563))
+        }
+
+        Text(
+            text = maxText,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 78.dp, top = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF223461),
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = minText,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 78.dp, bottom = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF223461),
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+private fun DashboardWidget.isHorizontalBarGauge(subType: String): Boolean {
+    val normalizedTitle = title.trim().lowercase()
+    return subType in setOf(
+        "horizontal_bar",
+        "horizontal-bar",
+        "horizontalbar"
+    ) || "horizontal bar" in normalizedTitle
+}
+
+private fun DashboardWidget.isVerticalBarGauge(subType: String): Boolean {
+    val normalizedTitle = title.trim().lowercase()
+    return subType in setOf(
+        "vertical_bar",
+        "vertical-bar",
+        "verticalbar"
+    ) || "vertical bar" in normalizedTitle
+}
+
+@Composable
 private fun DashboardArchSpeedometerTile(
     title: String,
     valueText: String,
@@ -427,10 +1124,12 @@ private fun DashboardArchSpeedometerTile(
     maxText: String
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -574,10 +1273,12 @@ private fun DashboardRadialGaugeTile(
     percent: Float
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -737,7 +1438,92 @@ private fun SegmentedSpeedometerGauge(
         Text(
             text = valueText,
             modifier = Modifier
-                .align(Alignment.Center),
+                .align(Alignment.Center)
+                .offset(10.dp, 25.dp),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF223461),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun TickSpeedometerGauge(
+    percent: Float,
+    valueText: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(136.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val tickCount = 25
+            val tickStroke = 10f
+            val radius = (size.minDimension / 2f) - tickStroke - 2f
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.86f)
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val stepSweep = sweepTotal / tickCount
+            val tickLength = radius * 0.15f
+            val lightBlue = Color(0xFF72AAC5)
+            val darkBlue = Color(0xFF1E3A8A)
+
+            repeat(tickCount) { index ->
+                val fraction = index.toFloat() / (tickCount - 1).coerceAtLeast(1)
+                val tickAngle = Math.toRadians((startAngle + index * stepSweep).toDouble())
+                val outer = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(tickAngle) * radius).toFloat(),
+                    y = center.y + (sin(tickAngle) * radius).toFloat()
+                )
+                val inner = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(tickAngle) * (radius - tickLength)).toFloat(),
+                    y = center.y + (sin(tickAngle) * (radius - tickLength)).toFloat()
+                )
+                drawLine(
+                    color = lerp(lightBlue, darkBlue, fraction),
+                    start = inner,
+                    end = outer,
+                    strokeWidth = tickStroke,
+                    cap = StrokeCap.Round
+                )
+            }
+
+            val needleAngle = Math.toRadians(
+                (startAngle + (percent.coerceIn(0f, 1f) * sweepTotal)).toDouble()
+            )
+            val needleLen = radius - 12f
+            val needleTip = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(needleAngle) * needleLen).toFloat(),
+                y = center.y + (sin(needleAngle) * needleLen).toFloat()
+            )
+            val baseAngle = needleAngle + Math.PI / 2.0
+            val baseHalfWidth = 7f
+            val baseStart = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y + (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val baseEnd = androidx.compose.ui.geometry.Offset(
+                x = center.x - (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y - (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val needlePath = Path().apply {
+                moveTo(needleTip.x, needleTip.y)
+                lineTo(baseStart.x, baseStart.y)
+                lineTo(baseEnd.x, baseEnd.y)
+                close()
+            }
+            drawPath(path = needlePath, color = Color(0xFF0000AA))
+            drawCircle(color = Color(0xFF16A34A), radius = 10f, center = center)
+        }
+
+        Text(
+            text = valueText,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(10.dp, 15.dp),
             style = MaterialTheme.typography.titleMedium,
             color = Color(0xFF223461),
             fontWeight = FontWeight.SemiBold,
@@ -804,6 +1590,192 @@ private fun DashboardComparisonCard(widget: DashboardWidget) {
                 }
             }
         }
+    }
+}
+
+private data class CompositeCardItem(
+    val label: String,
+    val displayValue: String
+)
+
+private fun DashboardWidget.isCompositeStyleWidget(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase()
+    if (typeKey == "composite") return true
+    if (typeKey == "comparison" && subTypeKey == "composite") return true
+    if (subTypeKey.startsWith("composite_")) return true
+    if (typeKey == "gauge" || typeKey == "charts") return false
+
+    val source = sources.firstOrNull()
+    val fields = source?.fields.orEmpty()
+    if (fields.size < 2) return false
+
+    val titleKey = title.lowercase()
+    val looksCompositeTitle =
+        "cycle on" in titleKey &&
+            ("date" in titleKey || "time" in titleKey || "duration" in titleKey)
+    val looksCompositeFields = fields.any { field ->
+        val fieldKey = field.lowercase()
+        "cycle on" in fieldKey &&
+            ("date" in fieldKey || "time" in fieldKey || "duration" in fieldKey)
+    }
+
+    return (typeKey == "comparison" || typeKey == "cards" || typeKey.isBlank()) &&
+        (looksCompositeTitle || looksCompositeFields)
+}
+
+@Composable
+private fun DashboardCompositeCard(widget: DashboardWidget) {
+    val source = widget.sources.firstOrNull()
+    val items = remember(source, widget.valuesByField, widget.unit) {
+        buildCompositeCardItems(widget, source)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (widget.title.isNotBlank() && items.isEmpty()) {
+            Text(
+                text = widget.title,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items.forEach { item ->
+                CompositeChildCard(
+                    label = item.label,
+                    displayValue = item.displayValue
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompositeChildCard(
+    label: String,
+    displayValue: String
+) {
+    Card(
+        modifier = Modifier
+            .width(246.dp)
+            .heightIn(min = 168.dp)
+            .dashboardWidgetCardShadow(),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF243B6B)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 22.dp, vertical = 28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = displayValue,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+private fun buildCompositeCardItems(
+    widget: DashboardWidget,
+    source: com.ithing.mobile.domain.model.DashboardWidgetSource?
+): List<CompositeCardItem> {
+    val fields = source?.fields.orEmpty()
+    if (fields.isEmpty()) return emptyList()
+
+    val units = source?.units.orEmpty()
+    val items = mutableListOf<CompositeCardItem>()
+    var index = 0
+
+    while (index < fields.size) {
+        val label = fields[index]
+        val groupSize = compositeFieldGroupSize(label, remaining = fields.size - index)
+        val fieldGroup = fields.subList(index, index + groupSize)
+        val unit = units.getOrNull(index)?.takeIf { it.isNotBlank() } ?: widget.unit.orEmpty()
+
+        items += CompositeCardItem(
+            label = label,
+            displayValue = fieldGroup.toCompositeValueText(
+                widget = widget,
+                label = label,
+                unit = unit
+            )
+        )
+        index += groupSize
+    }
+
+    return items
+}
+
+private fun compositeFieldGroupSize(label: String, remaining: Int): Int {
+    val normalized = label.lowercase()
+    return when {
+        remaining >= 3 && "date" in normalized -> 3
+        remaining >= 2 && (
+            "time" in normalized ||
+                "duration" in normalized ||
+                "hour" in normalized ||
+                "min" in normalized
+            ) -> 2
+        else -> 1
+    }
+}
+
+private fun List<String>.toCompositeValueText(
+    widget: DashboardWidget,
+    label: String,
+    unit: String
+): String {
+    val separator = if ("date" in label.lowercase()) " / " else " - "
+    val parts = mapNotNull { field ->
+        widget.valuesByField[field]?.formatCompositePart()
+    }
+
+    if (parts.isEmpty()) return "--"
+    val joinedValue = parts.joinToString(separator = separator)
+    return if (parts.size == 1) {
+        widget.valuesByField[this.first()].formatDashboardValue(unit)
+    } else {
+        joinedValue
     }
 }
 
@@ -1667,8 +2639,7 @@ private fun DialGauge(
         Text(
             text = valueText,
             modifier = Modifier
-                .align(Alignment.Center)
-                .offset(y = 50.dp),
+                .align(Alignment.Center),
             style = MaterialTheme.typography.displaySmall,
             color = Color(0xFFE2E8F0),
             fontWeight = FontWeight.Normal
@@ -2480,6 +3451,11 @@ private fun Double?.formatDashboardValue(unit: String? = null): String {
     val unitText = unit?.takeIf { it.isNotBlank() }
     return if (this != null && unitText != null) "$valueText $unitText" else valueText
 }
+
+private fun Double.formatCompositePart(): String =
+    if (!isFinite()) "--"
+    else if (this % 1.0 == 0.0) roundToInt().toString()
+    else formatForCard()
 
 private fun Double.formatForCard(decimals: Int = 2): String =
     if (!this.isFinite()) "--"

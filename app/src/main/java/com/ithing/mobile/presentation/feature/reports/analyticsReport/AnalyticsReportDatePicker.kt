@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -166,9 +167,10 @@ fun AnalyticsCustomDateRangeDialog(
     }
 
     var showMonthYearPicker by remember { mutableStateOf(false) }
+    val locale = LocalLocale.current.platformLocale
 
-    val rangeText = remember(startDate, endDate) {
-        formatRangeLabel(startDate, endDate)
+    val rangeText = remember(startDate, endDate, locale) {
+        formatRangeLabel(startDate, endDate, locale)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -312,6 +314,8 @@ private fun MonthNavHeader(
     onNext: () -> Unit,
     onTitleClick: () -> Unit
 ) {
+    val locale = LocalLocale.current.platformLocale
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -336,7 +340,7 @@ private fun MonthNavHeader(
                 text = "${
                     month.month.getDisplayName(
                         TextStyle.FULL,
-                        Locale.getDefault()
+                        locale
                     )
                 } ${month.year}",
                 style = MaterialTheme.typography.titleLarge,
@@ -359,6 +363,8 @@ private fun MonthNavHeader(
 
 @Composable
 private fun WeekDaysRow() {
+    val locale = LocalLocale.current.platformLocale
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -376,7 +382,7 @@ private fun WeekDaysRow() {
         )
         days.forEach { day ->
             Text(
-                text = day.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                text = day.getDisplayName(TextStyle.NARROW, locale),
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.titleSmall,
@@ -440,8 +446,9 @@ private fun MonthYearPickerDialog(
     var selectedYear by remember(initialMonth) { mutableStateOf(initialMonth.year) }
     var selectedMonthValue by remember(initialMonth) { mutableStateOf(initialMonth.monthValue) }
     var yearExpanded by remember { mutableStateOf(false) }
+    val locale = LocalLocale.current.platformLocale
 
-    val monthFormatter = remember { DateTimeFormatter.ofPattern("MMM", Locale.getDefault()) }
+    val monthFormatter = remember(locale) { DateTimeFormatter.ofPattern("MMM", locale) }
     val years = remember { (1970..2100).toList() }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -507,7 +514,7 @@ private fun MonthYearPickerDialog(
                             for (m in rowStart until (rowStart + 3)) {
                                 val ym = YearMonth.of(selectedYear, m)
                                 val label = ym.atDay(1).format(monthFormatter)
-                                    .uppercase(Locale.getDefault())
+                                    .uppercase(locale)
                                 val isSelected =
                                     (selectedYear == ym.year && selectedMonthValue == ym.monthValue)
                                 val modifier = Modifier
@@ -577,9 +584,9 @@ private fun LocalDate.toEpochMillis(zoneId: ZoneId): Long {
     return this.atStartOfDay(zoneId).toInstant().toEpochMilli()
 }
 
-private fun formatRangeLabel(start: LocalDate?, end: LocalDate?): String {
+private fun formatRangeLabel(start: LocalDate?, end: LocalDate?, locale: Locale): String {
     if (start == null && end == null) return ""
-    val fmt = DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault())
+    val fmt = DateTimeFormatter.ofPattern("MMM dd, yyyy", locale)
     return when {
         start != null && end != null -> "${start.format(fmt)} – ${end.format(fmt)}"
         start != null -> start.format(fmt)
