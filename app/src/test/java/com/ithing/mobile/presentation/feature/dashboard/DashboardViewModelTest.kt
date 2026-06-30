@@ -141,6 +141,8 @@ class DashboardViewModelTest {
         assertEquals(listOf("Throughput"), state.widgets.map { it.title })
         assertEquals("customer-b", dashboardRepository.lastRequestedCustomerId)
         assertEquals("device-c", dashboardRepository.lastRequestedDeviceId)
+        assertTrue(dashboardRepository.chartLogRequests.isNotEmpty())
+        assertTrue(dashboardRepository.chartLogRequests.all { it.limit == 10 })
     }
 
     @Test
@@ -166,6 +168,7 @@ class DashboardViewModelTest {
 
         var lastRequestedCustomerId: String? = null
         var lastRequestedDeviceId: String? = null
+        val chartLogRequests = mutableListOf<ChartLogRequest>()
 
         private val fakeIndustries = listOf(
             Industry(id = "food", name = "Food"),
@@ -255,6 +258,11 @@ class DashboardViewModelTest {
             timestamp: Long,
             limit: Int
         ): Result<List<DashboardEventLogDto>> {
+            chartLogRequests += ChartLogRequest(
+                deviceId = deviceId,
+                timestamp = timestamp,
+                limit = limit
+            )
             return Result.success(emptyList())
         }
 
@@ -266,5 +274,11 @@ class DashboardViewModelTest {
         ): Result<DashboardTelemetryResult> {
             return Result.success(DashboardTelemetryResult(widgets = widgets))
         }
+
+        data class ChartLogRequest(
+            val deviceId: String,
+            val timestamp: Long,
+            val limit: Int
+        )
     }
 }

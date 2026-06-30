@@ -230,7 +230,10 @@ class DashboardRepositoryImpl @Inject constructor(
         }
 
         val collatedChartLogs = collateParsedEvents(chartLogs, mappingPayload)
-
+        println(
+            "DashboardRepository: chart API times count=${collatedChartLogs.size} " +
+                    "times=${collatedChartLogs.map { "${it.timestamp}:${it.label}" }}"
+        )
         val enriched = widgets.map { widget ->
             val allFields = widget.sources.flatMap { it.fields }
             val valuesByField = allFields
@@ -420,10 +423,10 @@ class DashboardRepositoryImpl @Inject constructor(
         val parsedLogs = logs
             .mapNotNull { log ->
                 val translated = parseEvent(log.data, mappingPayload) ?: return@mapNotNull null
-                val timestamp = translated["timeStamp"] as? Long ?: deriveTimestamp(log.data) ?: log.timeStamp
+                val timestamp = deriveTimestamp(log.data) ?: log.timeStamp
                 ParsedDashboardLog(
                     timestamp = timestamp,
-                    label = timestamp.toLabel(),
+                    label = deriveTimeLabel(log.data) ?: timestamp.toLabel(),
                     values = translated.filterValues { it.isFinite() }
                 )
             }
@@ -564,6 +567,16 @@ class DashboardRepositoryImpl @Inject constructor(
         }.getOrNull()
     }
 
+    private fun deriveTimeLabel(rawData: Map<String, String>): String? {
+        val rawTime = rawData["Time"]?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return runCatching {
+            val parsedTime = java.time.LocalTime.parse(rawTime, DASHBOARD_TIME_FORMATTER)
+            DASHBOARD_TIME_LABEL_FORMATTER.format(parsedTime)
+        }.getOrElse {
+            rawTime
+        }
+    }
+
     private fun Long.toLabel(): String =
         java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
             .format(java.util.Date(this))
@@ -587,5 +600,7 @@ class DashboardRepositoryImpl @Inject constructor(
             "https://o4jvg4ubjkowz6rurqqkndzelm0tuqsq.lambda-url.ap-south-1.on.aws/fetch-events"
         private const val LOG_COLLATION_WINDOW_MS = 100_000L
         private val DASHBOARD_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")
+        private val DASHBOARD_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss")
+        private val DASHBOARD_TIME_LABEL_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)
     }
 }
