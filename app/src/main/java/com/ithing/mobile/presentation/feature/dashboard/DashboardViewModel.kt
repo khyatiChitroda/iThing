@@ -21,6 +21,8 @@ import javax.inject.Inject
 import java.time.LocalDate
 import java.time.ZoneId
 
+private const val DASHBOARD_CHART_LOG_LIMIT = 5_000
+
 data class DashboardUiState(
     val industries: List<Industry> = emptyList(),
     val oems: List<Oem> = emptyList(),
@@ -161,7 +163,7 @@ class DashboardViewModel @Inject constructor(
                     cachedChartLogs = dashboardRepository.getLogsAfter(
                         deviceId = deviceId,
                         timestamp = startOfDayMillis(),
-                        limit = 500
+                        limit = DASHBOARD_CHART_LOG_LIMIT
                     ).getOrDefault(emptyList())
 
                     val latestLogs = dashboardRepository.getLatestEvents(
