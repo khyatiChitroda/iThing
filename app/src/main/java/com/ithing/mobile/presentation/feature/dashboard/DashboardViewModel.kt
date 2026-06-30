@@ -2,6 +2,7 @@ package com.ithing.mobile.presentation.feature.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
@@ -21,7 +22,8 @@ import javax.inject.Inject
 import java.time.LocalDate
 import java.time.ZoneId
 
-private const val DASHBOARD_CHART_LOG_LIMIT = 5_000
+private const val DASHBOARD_CHART_HOURLY_LOG_LIMIT = 10
+private const val ONE_HOUR_MILLIS = 60 * 60 * 1000L
 
 data class DashboardUiState(
     val industries: List<Industry> = emptyList(),
@@ -50,7 +52,7 @@ class DashboardViewModel @Inject constructor(
     private var autoRefreshJob: Job? = null
     private var cachedWidgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget> = emptyList()
     private var cachedMapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto? = null
-    private var cachedChartLogs: List<com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto> = emptyList()
+    private var cachedChartLogs: List<DashboardEventLogDto> = emptyList()
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
@@ -160,11 +162,7 @@ class DashboardViewModel @Inject constructor(
                     val mapping = dashboardRepository.getDeviceMapping(deviceId).getOrThrow()
                     cachedMapping = mapping
 
-                    cachedChartLogs = dashboardRepository.getLogsAfter(
-                        deviceId = deviceId,
-                        timestamp = startOfDayMillis(),
-                        limit = DASHBOARD_CHART_LOG_LIMIT
-                    ).getOrDefault(emptyList())
+                    cachedChartLogs = fetchHourlyChartLogs(deviceId)
 
                     val latestLogs = dashboardRepository.getLatestEvents(
                         deviceId = deviceId,
@@ -254,7 +252,7 @@ class DashboardViewModel @Inject constructor(
         deviceId: String,
         mapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto,
         widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>,
-        chartLogs: List<com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto>
+        chartLogs: List<DashboardEventLogDto>
     ) {
         val latestLogs = dashboardRepository.getLatestEvents(
             deviceId = deviceId,
@@ -275,6 +273,42 @@ class DashboardViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun fetchHourlyChartLogs(deviceId: String): List<DashboardEventLogDto> {
+        val startTime = startOfDayMillis()
+        val endTime = System.currentTimeMillis()
+        val result = mutableListOf<DashboardEventLogDto>()
+
+        var currentSlot = startTime
+        while (currentSlot < endTime) {
+            val batch = dashboardRepository.getLogsAfter(
+                deviceId = deviceId,
+                timestamp = currentSlot,
+                limit = DASHBOARD_CHART_HOURLY_LOG_LIMIT
+            ).getOrDefault(emptyList())
+
+            println(
+                "DashboardViewModel: chart hourly fetch " +
+                    "timestamp=$currentSlot count=${batch.size}"
+            )
+
+            result += batch
+            currentSlot += ONE_HOUR_MILLIS
+        }
+
+        val sortedLogs = result
+            .distinctBy { it.timeStamp to it.data }
+            .sortedBy { it.timeStamp }
+
+        println(
+            "DashboardViewModel: chart hourly result " +
+                "count=${sortedLogs.size} " +
+                "first=${sortedLogs.firstOrNull()?.timeStamp} " +
+                "last=${sortedLogs.lastOrNull()?.timeStamp}"
+        )
+
+        return sortedLogs
     }
 
     private fun startOfDayMillis(): Long =

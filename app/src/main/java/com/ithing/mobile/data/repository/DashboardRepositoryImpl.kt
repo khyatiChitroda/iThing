@@ -230,7 +230,10 @@ class DashboardRepositoryImpl @Inject constructor(
         }
 
         val collatedChartLogs = collateParsedEvents(chartLogs, mappingPayload)
-
+        println(
+            "DashboardRepository: chart API times count=${collatedChartLogs.size} " +
+                    "times=${collatedChartLogs.map { "${it.timestamp}:${it.label}" }}"
+        )
         val enriched = widgets.map { widget ->
             val allFields = widget.sources.flatMap { it.fields }
             val valuesByField = allFields
