@@ -71,6 +71,7 @@ import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Thermometer
 import com.ithing.mobile.domain.model.DashboardWidget
 import com.ithing.mobile.domain.model.DashboardWidgetColorValues
+import com.ithing.mobile.domain.model.DashboardWidgetPoint
 import com.ithing.mobile.domain.model.DashboardWidgetSeries
 import com.ithing.mobile.presentation.theme.LightGrayBg
 import kotlin.math.abs
@@ -4747,6 +4748,51 @@ private fun List<DashboardWidgetSeries>.toHourlyChartSamples(): List<DashboardWi
     }
 }
 
+private data class LineChartSlot(
+    val bucket: Long,
+    val label: String
+)
+
+private data class LineChartPlotData(
+    val slots: List<LineChartSlot>,
+    val series: List<DashboardWidgetSeries>
+)
+
+private fun List<DashboardWidgetSeries>.toSharedHourlyLineChartData(): LineChartPlotData {
+    val sourceSeries = filter { it.points.isNotEmpty() }
+    if (sourceSeries.isEmpty()) return LineChartPlotData(emptyList(), emptyList())
+
+    val slots = sourceSeries
+        .flatMap { it.points }
+        .sortedBy { it.timestamp }
+        .distinctBy { it.timestamp.toHourBucket() }
+        .map { point ->
+            LineChartSlot(
+                bucket = point.timestamp.toHourBucket(),
+                label = point.label
+            )
+        }
+
+    val sampledSeries = sourceSeries.map { series ->
+        val pointsByBucket = series.points
+            .sortedBy { it.timestamp }
+            .distinctBy { it.timestamp.toHourBucket() }
+            .associateBy { it.timestamp.toHourBucket() }
+
+        series.copy(
+            points = slots.map { slot ->
+                pointsByBucket[slot.bucket] ?: DashboardWidgetPoint(
+                    timestamp = slot.bucket,
+                    label = slot.label,
+                    value = 0.0
+                )
+            }
+        )
+    }.filter { it.points.isNotEmpty() }
+
+    return LineChartPlotData(slots = slots, series = sampledSeries)
+}
+
 private fun List<DashboardWidgetSeries>.toWebStateChartSamples(): List<DashboardWidgetSeries> {
     val basePoints = firstOrNull()?.points.orEmpty()
     if (basePoints.size <= 1) return this
@@ -4903,9 +4949,26 @@ private fun Double.niceBarAxisMax(): Double {
     return if (max == 0.0) BAR_CHART_AXIS_STEP else max
 }
 
-private fun Double.niceLineAxisMin(): Double = niceBarAxisMin()
+private fun niceLineAxisStep(min: Double, max: Double): Double {
+    val range = (max - min).takeIf { it.isFinite() && it > 0.0 } ?: 1.0
+    return when {
+        range <= 1.0 -> 0.2
+        range <= 2.0 -> 0.5
+        range <= 10.0 -> 1.0
+        range <= 20.0 -> 2.0
+        range <= 50.0 -> 5.0
+        range <= 100.0 -> 10.0
+        else -> 50.0
+    }
+}
 
-private fun Double.niceLineAxisMax(): Double = niceBarAxisMax()
+private fun Double.niceLineAxisMin(step: Double): Double =
+    kotlin.math.floor(this / step) * step
+
+private fun Double.niceLineAxisMax(step: Double): Double {
+    val max = kotlin.math.ceil(this / step) * step
+    return if (max == niceLineAxisMin(step)) max + step else max
+}
 
 private fun Double.formatBarAxisLabel(): String =
     if (this % 1.0 == 0.0) {
@@ -4913,6 +4976,16 @@ private fun Double.formatBarAxisLabel(): String =
     } else {
         formatOneDecimal()
     }
+
+private fun Double.formatLineAxisLabel(): String =
+    if (this % 1.0 == 0.0) {
+        this.toInt().toString()
+    } else {
+        formatOneDecimal()
+    }
+
+private fun Double.roundLineChartValue(): Double =
+    String.format(java.util.Locale.US, "%.2f", this).toDouble()
 
 private fun Double.formatStateAxisLabel(): String =
     if (abs(this) >= 10.0 && this % 1.0 == 0.0) {
@@ -4956,20 +5029,21 @@ private fun CircularChartLegendGrid(items: List<CircularChartItem>) {
 
 @Composable
 private fun DashboardLineChartCard(widget: DashboardWidget) {
-    val plottedSeries = remember(widget) {
-        widget.chartSeries
-            .filter { it.points.isNotEmpty() }
-            .toHourlyChartSamples()
+    val plotData = remember(widget) {
+        widget.chartSeries.toSharedHourlyLineChartData()
     }
-    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
-    val allValues = plottedSeries.flatMap { it.points }.map { it.value }
+    val plottedSeries = plotData.series
+    val xLabels = plotData.slots.map { it.label }
+    val slotIndexes = plotData.slots.mapIndexed { index, slot -> slot.bucket to index }.toMap()
+    val allValues = plottedSeries.flatMap { it.points }.map { it.value.roundLineChartValue() }
     val rawMin = allValues.minOrNull() ?: 0.0
     val rawMax = allValues.maxOrNull() ?: 1.0
-    val yMin = rawMin.niceLineAxisMin()
-    val yMax = rawMax.niceLineAxisMax()
+    val lineAxisStep = niceLineAxisStep(rawMin, rawMax)
+    val yMin = rawMin.niceLineAxisMin(lineAxisStep)
+    val yMax = rawMax.niceLineAxisMax(lineAxisStep)
         .takeIf { it > yMin }
-        ?: (yMin + BAR_CHART_AXIS_STEP)
-    val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: BAR_CHART_AXIS_STEP
+        ?: (yMin + lineAxisStep)
+    val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: lineAxisStep
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -5017,11 +5091,18 @@ private fun DashboardLineChartCard(widget: DashboardWidget) {
             val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
             val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
             val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
-            val verticalSteps = ((valueRange / BAR_CHART_AXIS_STEP).roundToInt()).coerceIn(4, 8)
+            val verticalSteps = ((valueRange / lineAxisStep).roundToInt()).coerceAtLeast(1)
             val gridColor = Color(0xFFE1E5EA)
 
             fun yForValue(value: Double): Float =
                 plotBottom - (((value - yMin) / valueRange).toFloat() * plotHeight)
+
+            fun xForSlot(slotIndex: Int): Float =
+                if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * slotIndex / (xLabels.size - 1))
+                }
 
             repeat(verticalSteps + 1) { step ->
                 val y = plotTop + (plotHeight * step / verticalSteps)
@@ -5052,7 +5133,7 @@ private fun DashboardLineChartCard(widget: DashboardWidget) {
                 val value = yMax - (valueRange * step / verticalSteps)
                 val y = plotTop + (plotHeight * step / verticalSteps)
                 drawContext.canvas.nativeCanvas.drawText(
-                    value.formatBarAxisLabel(),
+                    value.formatLineAxisLabel(),
                     plotLeft - 8f,
                     y + 6f,
                     yLabelPaint
@@ -5065,12 +5146,9 @@ private fun DashboardLineChartCard(widget: DashboardWidget) {
 
                 val path = Path()
                 points.forEachIndexed { pointIndex, point ->
-                    val x = if (points.size == 1) {
-                        plotLeft + (plotWidth / 2f)
-                    } else {
-                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
-                    }
-                    val y = yForValue(point.value)
+                    val slotIndex = slotIndexes[point.timestamp.toHourBucket()] ?: return@forEachIndexed
+                    val x = xForSlot(slotIndex)
+                    val y = yForValue(point.value.roundLineChartValue())
                     if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
 
@@ -5081,13 +5159,10 @@ private fun DashboardLineChartCard(widget: DashboardWidget) {
                     style = Stroke(width = 3f, cap = StrokeCap.Round)
                 )
 
-                points.forEachIndexed { pointIndex, point ->
-                    val x = if (points.size == 1) {
-                        plotLeft + (plotWidth / 2f)
-                    } else {
-                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
-                    }
-                    val y = yForValue(point.value)
+                points.forEach { point ->
+                    val slotIndex = slotIndexes[point.timestamp.toHourBucket()] ?: return@forEach
+                    val x = xForSlot(slotIndex)
+                    val y = yForValue(point.value.roundLineChartValue())
                     drawCircle(color = color, radius = 4.5f, center = androidx.compose.ui.geometry.Offset(x, y))
                     drawCircle(color = Color.White, radius = 2.2f, center = androidx.compose.ui.geometry.Offset(x, y))
                 }
@@ -5100,11 +5175,7 @@ private fun DashboardLineChartCard(widget: DashboardWidget) {
                 isAntiAlias = true
             }
             xLabels.forEachIndexed { index, label ->
-                val x = if (xLabels.size == 1) {
-                    plotLeft + (plotWidth / 2f)
-                } else {
-                    plotLeft + (plotWidth * index / (xLabels.size - 1))
-                }
+                val x = xForSlot(index)
                 drawContext.canvas.nativeCanvas.save()
                 drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
                 drawContext.canvas.nativeCanvas.drawText(

@@ -234,8 +234,7 @@ class DashboardViewModel @Inject constructor(
                     refreshTelemetryOnly(
                         deviceId = deviceId!!,
                         mapping = mapping,
-                        widgetsConfig = widgetsConfig,
-                        chartLogs = cachedChartLogs
+                        widgetsConfig = widgetsConfig
                     )
                 }
                 delay(intervalMs)
@@ -251,19 +250,19 @@ class DashboardViewModel @Inject constructor(
     private suspend fun refreshTelemetryOnly(
         deviceId: String,
         mapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto,
-        widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>,
-        chartLogs: List<DashboardEventLogDto>
+        widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>
     ) {
         val latestLogs = dashboardRepository.getLatestEvents(
             deviceId = deviceId,
             lastTimeStamp = System.currentTimeMillis()
         ).getOrDefault(emptyList())
+        cachedChartLogs = mergeChartLogs(cachedChartLogs, latestLogs)
 
         dashboardRepository.applyDashboardTelemetry(
             widgets = widgetsConfig,
             mappingPayload = mapping,
             latestLogs = latestLogs,
-            chartLogs = chartLogs
+            chartLogs = cachedChartLogs
         ).onSuccess { telemetry ->
             _uiState.update {
                 it.copy(
@@ -274,6 +273,14 @@ class DashboardViewModel @Inject constructor(
             }
         }
     }
+
+    private fun mergeChartLogs(
+        currentLogs: List<DashboardEventLogDto>,
+        latestLogs: List<DashboardEventLogDto>
+    ): List<DashboardEventLogDto> =
+        (currentLogs + latestLogs)
+            .distinctBy { it.timeStamp to it.data }
+            .sortedBy { it.timeStamp }
 
     private suspend fun fetchHourlyChartLogs(deviceId: String): List<DashboardEventLogDto> {
         val startTime = startOfDayMillis()

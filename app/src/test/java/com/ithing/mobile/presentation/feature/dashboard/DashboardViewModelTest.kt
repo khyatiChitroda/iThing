@@ -16,6 +16,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -164,11 +165,40 @@ class DashboardViewModelTest {
         assertEquals("Select a customer and device to load widgets", viewModel.uiState.value.errorMessage)
     }
 
+    @Test
+    fun `auto refresh includes latest logs in chart telemetry`() = runTest {
+        val viewModel = DashboardViewModel(
+            logoutUseCase = logoutUseCase,
+            dashboardRepository = dashboardRepository,
+            sessionManager = sessionManager
+        )
+        advanceUntilIdle()
+
+        val latestLog = DashboardEventLogDto(
+            timeStamp = 123L,
+            data = mapOf("Time" to "10:00:00")
+        )
+        dashboardRepository.latestEvents = listOf(latestLog)
+
+        viewModel.refreshDashboard()
+        advanceUntilIdle()
+
+        dashboardRepository.chartLogsPassedToTelemetry.clear()
+        viewModel.startAutoRefresh(intervalMs = 1_000L)
+        runCurrent()
+        viewModel.stopAutoRefresh()
+        runCurrent()
+
+        assertTrue(dashboardRepository.chartLogsPassedToTelemetry.any { latestLog in it })
+    }
+
     private class FakeDashboardRepository : DashboardRepository {
 
         var lastRequestedCustomerId: String? = null
         var lastRequestedDeviceId: String? = null
+        var latestEvents: List<DashboardEventLogDto> = emptyList()
         val chartLogRequests = mutableListOf<ChartLogRequest>()
+        val chartLogsPassedToTelemetry = mutableListOf<List<DashboardEventLogDto>>()
 
         private val fakeIndustries = listOf(
             Industry(id = "food", name = "Food"),
@@ -250,7 +280,7 @@ class DashboardViewModelTest {
             deviceId: String,
             lastTimeStamp: Long
         ): Result<List<DashboardEventLogDto>> {
-            return Result.success(emptyList())
+            return Result.success(latestEvents)
         }
 
         override suspend fun getLogsAfter(
@@ -272,6 +302,7 @@ class DashboardViewModelTest {
             latestLogs: List<DashboardEventLogDto>,
             chartLogs: List<DashboardEventLogDto>
         ): Result<DashboardTelemetryResult> {
+            chartLogsPassedToTelemetry += chartLogs
             return Result.success(DashboardTelemetryResult(widgets = widgets))
         }
 

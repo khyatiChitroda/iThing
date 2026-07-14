@@ -220,7 +220,7 @@ class DashboardRepositoryImpl @Inject constructor(
         chartLogs: List<DashboardEventLogDto>
     ): Result<DashboardTelemetryResult> = runCatching {
         val collatedLatestLogs = collateParsedEvents(latestLogs, mappingPayload)
-        val latestLog = collatedLatestLogs.lastOrNull()
+        val latestLog = collatedLatestLogs.maxByOrNull { it.timestamp }
 
         if (latestLog != null && widgets.isNotEmpty()) {
             val fields = widgets.first().sources.flatMap { it.fields }.distinct()
@@ -239,7 +239,10 @@ class DashboardRepositoryImpl @Inject constructor(
             val valuesByField = allFields
                 .distinct()
                 .mapNotNull { field ->
-                    latestLog?.values?.get(field)?.let { value -> field to value }
+                    collatedLatestLogs
+                        .asReversed()
+                        .firstNotNullOfOrNull { log -> log.values[field] }
+                        ?.let { value -> field to value }
                 }
                 .toMap()
 
