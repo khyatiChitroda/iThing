@@ -24,6 +24,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -179,24 +181,23 @@ private fun DashboardWidget.combinationBarItems(limit: Int = 12): List<Combinati
     }.take(limit)
 }
 
-@Composable
-fun DashboardWidgetGrid(
+fun LazyListScope.dashboardWidgetGridItems(
     widgets: List<DashboardWidget>,
     selectedGroup: String
 ) {
-    val filteredWidgets = remember(widgets, selectedGroup) {
-        widgets
-            .filter { selectedGroup == "All" || it.dashboardName == selectedGroup }
-            .sortedBy { it.index ?: Int.MAX_VALUE }
-    }
+    val filteredWidgets = widgets
+        .filter { selectedGroup == "All" || it.dashboardName == selectedGroup }
+        .sortedBy { it.index ?: Int.MAX_VALUE }
 
-    val blocks = remember(filteredWidgets) {
+    val blocks = buildList {
         val out = mutableListOf<DashboardRenderBlock>()
         val metricBuffer = mutableListOf<DashboardWidget>()
 
         fun flushMetrics() {
             if (metricBuffer.isNotEmpty()) {
-                out += DashboardRenderBlock.Metric(metricBuffer.toList())
+                metricBuffer.chunked(4).forEach { chunk ->
+                    out += DashboardRenderBlock.Metric(chunk)
+                }
                 metricBuffer.clear()
             }
         }
@@ -210,16 +211,18 @@ fun DashboardWidgetGrid(
             }
         }
         flushMetrics()
-        out
+        addAll(out)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        blocks.forEach { block ->
+    lazyItems(
+        items = blocks,
+        contentType = { block -> block::class }
+    ) { block ->
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp, bottom = 10.dp)
+        ) {
             when (block) {
                 is DashboardRenderBlock.Metric -> DashboardMetricGrid(widgets = block.widgets)
                 is DashboardRenderBlock.Chart -> {

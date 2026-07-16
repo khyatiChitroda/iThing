@@ -25,6 +25,8 @@ import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.repository.DashboardRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -46,7 +48,6 @@ class DashboardRepositoryImpl @Inject constructor(
 
     private var logsCache: LogsCacheEntry? = null
     private var latestEventsCache: LatestEventsCacheEntry? = null
-
     private data class LogsCacheEntry(
         val deviceId: String,
         val timestamp: Long,
@@ -218,7 +219,8 @@ class DashboardRepositoryImpl @Inject constructor(
         mappingPayload: DeviceMappingPayloadDto,
         latestLogs: List<DashboardEventLogDto>,
         chartLogs: List<DashboardEventLogDto>
-    ): Result<DashboardTelemetryResult> = runCatching {
+    ): Result<DashboardTelemetryResult> = withContext(Dispatchers.Default) {
+        runCatching {
         val collatedLatestLogs = collateParsedEvents(latestLogs, mappingPayload)
         val latestLog = collatedLatestLogs.lastOrNull()
 
@@ -230,6 +232,7 @@ class DashboardRepositoryImpl @Inject constructor(
         }
 
         val collatedChartLogs = collateParsedEvents(chartLogs, mappingPayload)
+        val chartLogsForRendering = collatedChartLogs.evenlySampled(MAX_RENDERED_CHART_POINTS)
 
         val enriched = widgets.map { widget ->
             val allFields = widget.sources.flatMap { it.fields }
@@ -246,7 +249,7 @@ class DashboardRepositoryImpl @Inject constructor(
                 .map { field ->
                     DashboardWidgetSeries(
                         label = widget.unit?.takeIf { it.isNotBlank() }?.let { "$field ($it)" } ?: field,
-                        points = collatedChartLogs.mapNotNull { log ->
+                        points = chartLogsForRendering.mapNotNull { log ->
                             val value = log.values[field] ?: return@mapNotNull null
                             DashboardWidgetPoint(
                                 timestamp = log.timestamp,
@@ -268,13 +271,14 @@ class DashboardRepositoryImpl @Inject constructor(
             )
         }
 
-        DashboardTelemetryResult(
-            widgets = enriched,
-            lastUpdatedAt = latestLog?.timestamp
-        )
-    }.onFailure { error ->
-        println("DashboardRepository: applyDashboardTelemetry failed ${error.message}")
-        error.printStackTrace()
+            DashboardTelemetryResult(
+                widgets = enriched,
+                lastUpdatedAt = latestLog?.timestamp
+            )
+        }.onFailure { error ->
+            println("DashboardRepository: applyDashboardTelemetry failed ${error.message}")
+            error.printStackTrace()
+        }
     }
 
 
@@ -445,6 +449,16 @@ class DashboardRepositoryImpl @Inject constructor(
         return collated
     }
 
+    private fun <T> List<T>.evenlySampled(maxPoints: Int): List<T> {
+        if (size <= maxPoints || maxPoints < 2) return this
+        val lastSourceIndex = lastIndex.toLong()
+        val lastTargetIndex = (maxPoints - 1).toLong()
+        return List(maxPoints) { targetIndex ->
+            val sourceIndex = (targetIndex.toLong() * lastSourceIndex / lastTargetIndex).toInt()
+            this[sourceIndex]
+        }
+    }
+
     private fun parseEvent(
         rawData: Map<String, String>,
         mappingPayload: DeviceMappingPayloadDto
@@ -586,6 +600,7 @@ class DashboardRepositoryImpl @Inject constructor(
         private const val FETCH_EVENTS_URL =
             "https://o4jvg4ubjkowz6rurqqkndzelm0tuqsq.lambda-url.ap-south-1.on.aws/fetch-events"
         private const val LOG_COLLATION_WINDOW_MS = 100_000L
+        private const val MAX_RENDERED_CHART_POINTS = 120
         private val DASHBOARD_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")
     }
 }

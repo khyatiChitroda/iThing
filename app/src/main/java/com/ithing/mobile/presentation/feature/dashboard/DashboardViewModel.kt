@@ -9,6 +9,7 @@ import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.usecase.LogoutUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,9 +47,12 @@ class DashboardViewModel @Inject constructor(
     private val sessionManager: com.ithing.mobile.core.session.SessionManager
 ) : ViewModel() {
     private var autoRefreshJob: Job? = null
+    private var dashboardRefreshJob: Job? = null
     private var cachedWidgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget> = emptyList()
     private var cachedMapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto? = null
     private var cachedChartLogs: List<com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto> = emptyList()
+    private var lastFullRefreshAt: Long = 0L
+    private var filterEditSnapshot: FilterEditSnapshot? = null
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
@@ -135,7 +139,12 @@ class DashboardViewModel @Inject constructor(
         cachedChartLogs = emptyList()
 
         val customerSelected = _uiState.value.selectedCustomer != null
-        if (device != null && customerSelected && !_uiState.value.isRefreshing) {
+        if (
+            filterEditSnapshot == null &&
+            device != null &&
+            customerSelected &&
+            !_uiState.value.isRefreshing
+        ) {
             refreshDashboard()
         }
     }
@@ -144,8 +153,60 @@ class DashboardViewModel @Inject constructor(
         _uiState.update { it.copy(selectedGroup = group) }
     }
 
+    fun beginFilterEditing() {
+        if (filterEditSnapshot != null) return
+        stopAutoRefresh()
+        dashboardRefreshJob?.cancel()
+        dashboardRefreshJob = null
+        val pausedState = _uiState.value.copy(isRefreshing = false)
+        filterEditSnapshot = FilterEditSnapshot(
+            uiState = pausedState,
+            widgetsConfig = cachedWidgetsConfig,
+            mapping = cachedMapping,
+            chartLogs = cachedChartLogs
+        )
+        _uiState.value = pausedState
+    }
+
+    fun applyFilterEditing() {
+        filterEditSnapshot = null
+        val currentState = _uiState.value
+        if (
+            currentState.selectedCustomer != null &&
+            currentState.selectedDevice != null
+        ) {
+            cachedWidgetsConfig = emptyList()
+            cachedMapping = null
+            cachedChartLogs = emptyList()
+            _uiState.update {
+                it.copy(
+                    widgets = emptyList(),
+                    availableGroups = listOf("All"),
+                    selectedGroup = "All",
+                    lastUpdatedAt = null,
+                    isRefreshing = true,
+                    errorMessage = null
+                )
+            }
+            refreshDashboard()
+        }
+        startAutoRefresh()
+    }
+
+    fun cancelFilterEditing() {
+        val snapshot = filterEditSnapshot ?: return
+        dashboardRefreshJob?.cancel()
+        cachedWidgetsConfig = snapshot.widgetsConfig
+        cachedMapping = snapshot.mapping
+        cachedChartLogs = snapshot.chartLogs
+        _uiState.value = snapshot.uiState.copy(isRefreshing = false)
+        filterEditSnapshot = null
+        startAutoRefresh()
+    }
+
     fun refreshDashboard() {
-        viewModelScope.launch {
+        dashboardRefreshJob?.cancel()
+        dashboardRefreshJob = viewModelScope.launch {
             val customerId = _uiState.value.selectedCustomer?.id
             val deviceId = _uiState.value.selectedDevice?.id
             if (customerId != null && deviceId != null) {
@@ -194,7 +255,9 @@ class DashboardViewModel @Inject constructor(
                             errorMessage = null
                         )
                     }
+                    lastFullRefreshAt = System.currentTimeMillis()
                 }.onFailure { ex ->
+                    if (ex is CancellationException) return@onFailure
                     _uiState.update {
                         it.copy(
                             isRefreshing = false,
@@ -220,6 +283,7 @@ class DashboardViewModel @Inject constructor(
         stopAutoRefresh()
         autoRefreshJob = viewModelScope.launch {
             while (isActive) {
+                delay(intervalMs)
                 val deviceId = _uiState.value.selectedDevice?.id
                 val mapping = cachedMapping
                 val widgetsConfig = cachedWidgetsConfig
@@ -230,7 +294,9 @@ class DashboardViewModel @Inject constructor(
                         _uiState.value.selectedCustomer != null &&
                         !_uiState.value.isRefreshing
 
-                if (canRefresh) {
+                if (canRefresh && System.currentTimeMillis() - lastFullRefreshAt >= FULL_REFRESH_INTERVAL_MS) {
+                    refreshDashboard()
+                } else if (canRefresh) {
                     refreshTelemetryOnly(
                         deviceId = deviceId!!,
                         mapping = mapping,
@@ -238,7 +304,6 @@ class DashboardViewModel @Inject constructor(
                         chartLogs = cachedChartLogs
                     )
                 }
-                delay(intervalMs)
             }
         }
     }
@@ -265,9 +330,17 @@ class DashboardViewModel @Inject constructor(
             latestLogs = latestLogs,
             chartLogs = chartLogs
         ).onSuccess { telemetry ->
+            val currentWidgetsById = _uiState.value.widgets.associateBy { it.id }
+            val widgetsForDisplay = telemetry.widgets.map { refreshedWidget ->
+                if (refreshedWidget.type.equals("charts", ignoreCase = true)) {
+                    currentWidgetsById[refreshedWidget.id] ?: refreshedWidget
+                } else {
+                    refreshedWidget
+                }
+            }
             _uiState.update {
                 it.copy(
-                    widgets = telemetry.widgets,
+                    widgets = widgetsForDisplay,
                     lastUpdatedAt = telemetry.lastUpdatedAt,
                     errorMessage = null
                 )
@@ -427,4 +500,15 @@ class DashboardViewModel @Inject constructor(
                 }
             }
     }
+
+    private companion object {
+        const val FULL_REFRESH_INTERVAL_MS = 60_000L
+    }
+
+    private data class FilterEditSnapshot(
+        val uiState: DashboardUiState,
+        val widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>,
+        val mapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto?,
+        val chartLogs: List<com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto>
+    )
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,7 +58,8 @@ import androidx.lifecycle.LifecycleEventObserver
 
 @Composable
 fun DashboardScreen(
-    viewModel: DashboardViewModel
+    viewModel: DashboardViewModel,
+    onFilterScreenVisibilityChanged: (Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -99,6 +101,10 @@ fun DashboardScreen(
         onCustomerSelected = viewModel::onCustomerSelected,
         onDeviceSelected = viewModel::onDeviceSelected,
         onGroupSelected = viewModel::onGroupSelected,
+        onFilterEditStarted = viewModel::beginFilterEditing,
+        onFilterApplied = viewModel::applyFilterEditing,
+        onFilterCancelled = viewModel::cancelFilterEditing,
+        onFilterScreenVisibilityChanged = onFilterScreenVisibilityChanged,
         onRefresh = viewModel::refreshDashboard
     )
 }
@@ -111,22 +117,43 @@ private fun DashboardContent(
     onCustomerSelected: (com.ithing.mobile.domain.model.Customer?) -> Unit,
     onDeviceSelected: (com.ithing.mobile.domain.model.Device?) -> Unit,
     onGroupSelected: (String) -> Unit,
+    onFilterEditStarted: () -> Unit,
+    onFilterApplied: () -> Unit,
+    onFilterCancelled: () -> Unit,
+    onFilterScreenVisibilityChanged: (Boolean) -> Unit,
     onRefresh: () -> Unit
 ) {
     var dashboardToastMessage by remember { mutableStateOf<String?>(null) }
+    var showFilterScreen by remember { mutableStateOf(false) }
+    var dashboardStateBeforeFilter by remember { mutableStateOf<DashboardUiState?>(null) }
 
-    val filteredWidgets = uiState.widgets.filter {
-        uiState.selectedGroup == "All" || it.dashboardName == uiState.selectedGroup
+    LaunchedEffect(showFilterScreen) {
+        onFilterScreenVisibilityChanged(showFilterScreen)
+    }
+    DisposableEffect(Unit) {
+        onDispose { onFilterScreenVisibilityChanged(false) }
+    }
+
+    LaunchedEffect(showFilterScreen, uiState.isRefreshing) {
+        if (!showFilterScreen && dashboardStateBeforeFilter != null && !uiState.isRefreshing) {
+            dashboardStateBeforeFilter = null
+        }
+    }
+
+    val contentState = dashboardStateBeforeFilter ?: uiState
+    val filteredWidgets = contentState.widgets.filter {
+        contentState.selectedGroup == "All" || it.dashboardName == contentState.selectedGroup
     }
     val showFullScreenLoader =
-        uiState.isLoading &&
-                uiState.industries.isEmpty() &&
-                uiState.oems.isEmpty() &&
-                uiState.customers.isEmpty() &&
-                uiState.devices.isEmpty()
+        contentState.isLoading &&
+                contentState.industries.isEmpty() &&
+                contentState.oems.isEmpty() &&
+                contentState.customers.isEmpty() &&
+                contentState.devices.isEmpty()
 
-    IThingScreenContainer { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        IThingScreenContainer { paddingValues ->
+            Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -143,53 +170,46 @@ private fun DashboardContent(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
 
-                        FilterSection(
-                            industries = uiState.industries,
-                            oems = uiState.oems,
-                            customers = uiState.customers,
-                            devices = uiState.devices,
-                            isLoading = uiState.isLoading,
-                            selectedIndustry = uiState.selectedIndustry,
-                            selectedOem = uiState.selectedOem,
-                            selectedCustomer = uiState.selectedCustomer,
-                            selectedDevice = uiState.selectedDevice,
-                            onIndustrySelected = onIndustrySelected,
-                            onOemSelected = onOemSelected,
-                            onCustomerSelected = onCustomerSelected,
-                            onDeviceSelected = onDeviceSelected
-                        )
-
                         DashboardActionsSection(
-                            groups = uiState.availableGroups,
-                            selectedGroup = uiState.selectedGroup,
-                            selectedCustomer = uiState.selectedCustomer != null,
-                            selectedDevice = uiState.selectedDevice != null,
-                            isRefreshing = uiState.isRefreshing,
-                            lastUpdatedAt = uiState.lastUpdatedAt,
-                            errorMessage = uiState.errorMessage,
+                            groups = contentState.availableGroups,
+                            selectedGroup = contentState.selectedGroup,
+                            selectedCustomer = contentState.selectedCustomer != null,
+                            selectedDevice = contentState.selectedDevice != null,
+                            isRefreshing = contentState.isRefreshing,
+                            lastUpdatedAt = contentState.lastUpdatedAt,
+                            selectedIndustryName = contentState.selectedIndustry?.name,
+                            selectedCustomerName = contentState.selectedCustomer?.name,
+                            selectedDeviceId = contentState.selectedDevice?.id,
                             onGroupSelected = onGroupSelected,
+                            onFilterClick = {
+                                dashboardStateBeforeFilter = uiState
+                                onFilterEditStarted()
+                                showFilterScreen = true
+                            },
                             onRefresh = onRefresh
                         )
 
-                        uiState.errorMessage?.let { message ->
+                        contentState.errorMessage?.let { message ->
                             ErrorBanner(message = message)
                         }
 
-                        if (!uiState.isRefreshing && filteredWidgets.isEmpty()) {
+                        if (!contentState.isRefreshing && filteredWidgets.isEmpty()) {
                             DashboardEmptyState(
-                                hasSelection = uiState.selectedCustomer != null && uiState.selectedDevice != null,
+                                hasSelection = contentState.selectedCustomer != null && contentState.selectedDevice != null,
                                 onCreateDashboardClick = {
                                     dashboardToastMessage =
                                         "Please use iThing website to create dashboard."
                                 }
                             )
-                        } else if (filteredWidgets.isNotEmpty()) {
-                            DashboardWidgetGrid(
-                                widgets = uiState.widgets,
-                                selectedGroup = uiState.selectedGroup
-                            )
                         }
                     }
+                }
+
+                if (filteredWidgets.isNotEmpty()) {
+                    dashboardWidgetGridItems(
+                        widgets = contentState.widgets,
+                        selectedGroup = contentState.selectedGroup
+                    )
                 }
             }
 
@@ -202,10 +222,31 @@ private fun DashboardContent(
             }
         }
 
-        if (showFullScreenLoader) {
-            FullScreenDashboardLoader()
-        } else if (uiState.isRefreshing) {
-            FullScreenDashboardLoader(message = "Refreshing dashboard...")
+            if (showFullScreenLoader) {
+                FullScreenDashboardLoader()
+            } else if (contentState.isRefreshing && contentState.widgets.isEmpty()) {
+                FullScreenDashboardLoader(message = "Refreshing dashboard...")
+            }
+        }
+
+        if (showFilterScreen) {
+            DashboardFilterScreen(
+                uiState = uiState,
+                onIndustrySelected = onIndustrySelected,
+                onOemSelected = onOemSelected,
+                onCustomerSelected = onCustomerSelected,
+                onDeviceSelected = onDeviceSelected,
+                onCancel = {
+                    onFilterCancelled()
+                    dashboardStateBeforeFilter = null
+                    showFilterScreen = false
+                },
+                onApply = {
+                    onFilterApplied()
+                    dashboardStateBeforeFilter = null
+                    showFilterScreen = false
+                }
+            )
         }
     }
 }
@@ -219,20 +260,16 @@ private fun DashboardActionsSection(
     selectedDevice: Boolean,
     isRefreshing: Boolean,
     lastUpdatedAt: Long?,
-    errorMessage: String?,
+    selectedIndustryName: String?,
+    selectedCustomerName: String?,
+    selectedDeviceId: String?,
     onGroupSelected: (String) -> Unit,
+    onFilterClick: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val lastUpdatedText = lastUpdatedAt?.let {
         SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault()).format(Date(it))
     } ?: "-"
-    val statusText = when {
-        isRefreshing -> "Refreshing"
-        errorMessage != null -> "Error"
-        !selectedCustomer || !selectedDevice -> "Select filters"
-        else -> "Ready"
-    }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -244,6 +281,16 @@ private fun DashboardActionsSection(
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFF0B3B92),
             fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Text(
+            text = "Industry: ${selectedIndustryName ?: "-"}  •  " +
+                "Customer: ${selectedCustomerName ?: "-"}  •  " +
+                "Device ID: ${selectedDeviceId ?: "-"}",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF4B5563),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -262,21 +309,19 @@ private fun DashboardActionsSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Status: $statusText",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.widthIn(max = 104.dp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
                 DashboardGroupSelector(
                     groups = groups,
                     selectedGroup = selectedGroup,
                     onGroupSelected = onGroupSelected,
                     modifier = Modifier.weight(1f)
                 )
+
+                IconButton(onClick = onFilterClick) {
+                    Icon(
+                        imageVector = Icons.Default.FilterList,
+                        contentDescription = "Open dashboard filters"
+                    )
+                }
 
                 IThingButton(
                     text = if (isRefreshing) "Refreshing" else "Refresh",

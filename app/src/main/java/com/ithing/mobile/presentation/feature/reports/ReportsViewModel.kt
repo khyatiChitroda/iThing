@@ -28,6 +28,7 @@ import com.ithing.mobile.presentation.feature.reports.analyticsReport.analyticsR
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -139,6 +140,8 @@ class ReportsViewModel @Inject constructor(
     private var allOems: List<Oem> = emptyList()
     private var allCustomers: List<Customer> = emptyList()
     private var allDevices: List<Device> = emptyList()
+    private var filterEditSnapshot: ReportsUiState? = null
+    private var filterLoadJob: Job? = null
 
     init {
         loadReports()
@@ -196,6 +199,36 @@ class ReportsViewModel @Inject constructor(
         applyFilters()
     }
 
+    fun beginFilterEditing() {
+        if (filterEditSnapshot == null) {
+            filterEditSnapshot = _uiState.value
+        }
+    }
+
+    fun applyFilterEditing() {
+        val previousState = filterEditSnapshot
+        filterEditSnapshot = null
+        val currentState = _uiState.value
+        val selectionChanged =
+            previousState?.selectedIndustry?.id != currentState.selectedIndustry?.id ||
+                previousState?.selectedOem?.id != currentState.selectedOem?.id ||
+                previousState?.selectedCustomer?.id != currentState.selectedCustomer?.id ||
+                previousState?.selectedDevice?.id != currentState.selectedDevice?.id
+        if (selectionChanged && currentState.selectedDevice != null) {
+            filterLoadJob?.cancel()
+            filterLoadJob = viewModelScope.launch {
+                loadSelectedDevice(currentState.selectedDevice.id, page = 1, refreshing = true)
+            }
+        }
+    }
+
+    fun cancelFilterEditing() {
+        val snapshot = filterEditSnapshot ?: return
+        filterLoadJob?.cancel()
+        _uiState.value = snapshot.copy(isRefreshing = false)
+        filterEditSnapshot = null
+    }
+
     fun onOemSelected(oem: Oem?) {
         _uiState.update {
             it.copy(
@@ -249,8 +282,11 @@ class ReportsViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
-            loadSelectedDevice(device.id, page = 1, refreshing = true)
+        if (filterEditSnapshot == null) {
+            filterLoadJob?.cancel()
+            filterLoadJob = viewModelScope.launch {
+                loadSelectedDevice(device.id, page = 1, refreshing = true)
+            }
         }
     }
 
