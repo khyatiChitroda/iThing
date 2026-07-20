@@ -3,6 +3,7 @@ package com.ithing.mobile.presentation.feature.dashboard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -27,10 +28,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +49,7 @@ import com.ithing.mobile.presentation.components.IThingCard
 import com.ithing.mobile.presentation.components.IThingScreenContainer
 import com.ithing.mobile.presentation.components.LoadingIndicator
 import com.ithing.mobile.presentation.theme.LightGrayBg
+import com.ithing.mobile.presentation.theme.dashboardLayoutForWidth
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -61,36 +64,41 @@ fun DashboardScreen(
     viewModel: DashboardViewModel,
     onFilterScreenVisibilityChanged: (Boolean) -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val selectedCustomerId = uiState.selectedCustomer?.id
     val selectedDeviceId = uiState.selectedDevice?.id
+    val hasDashboardSelection by rememberUpdatedState(
+        selectedCustomerId != null && selectedDeviceId != null
+    )
 
-    DisposableEffect(lifecycleOwner, selectedCustomerId, selectedDeviceId) {
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
-                    if (selectedCustomerId != null && selectedDeviceId != null) {
+                    if (hasDashboardSelection) {
                         viewModel.startAutoRefresh()
                     }
                 }
-                Lifecycle.Event.ON_PAUSE -> viewModel.stopAutoRefresh()
+                Lifecycle.Event.ON_PAUSE -> viewModel.stopDashboardWork()
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
 
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            if (selectedCustomerId != null && selectedDeviceId != null) {
-                viewModel.startAutoRefresh()
-            } else {
-                viewModel.stopAutoRefresh()
-            }
-        }
-
         onDispose {
-            viewModel.stopAutoRefresh()
+            viewModel.stopDashboardWork()
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(selectedCustomerId, selectedDeviceId, lifecycleOwner) {
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+            selectedCustomerId != null && selectedDeviceId != null
+        ) {
+            viewModel.startAutoRefresh()
+        } else {
+            viewModel.stopAutoRefresh()
         }
     }
 
@@ -141,8 +149,10 @@ private fun DashboardContent(
     }
 
     val contentState = dashboardStateBeforeFilter ?: uiState
-    val filteredWidgets = contentState.widgets.filter {
-        contentState.selectedGroup == "All" || it.dashboardName == contentState.selectedGroup
+    val filteredWidgets = remember(contentState.widgets, contentState.selectedGroup) {
+        contentState.widgets.filter {
+            contentState.selectedGroup == "All" || it.dashboardName == contentState.selectedGroup
+        }
     }
     val showFullScreenLoader =
         contentState.isLoading &&
@@ -156,7 +166,9 @@ private fun DashboardContent(
             Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier
+                    .widthIn(max = 1200.dp)
                     .fillMaxSize()
+                    .align(Alignment.TopCenter)
                     .background(LightGrayBg),
                 contentPadding = PaddingValues(
                     start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
@@ -281,7 +293,7 @@ private fun DashboardActionsSection(
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFF0B3B92),
             fontWeight = FontWeight.Medium,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
 
@@ -291,7 +303,7 @@ private fun DashboardActionsSection(
                 "Device ID: ${selectedDeviceId ?: "-"}",
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFF4B5563),
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
 
@@ -302,43 +314,87 @@ private fun DashboardActionsSection(
             shape = RoundedCornerShape(10.dp),
             shadowElevation = 1.dp
         ) {
-            Row(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
-                DashboardGroupSelector(
-                    groups = groups,
-                    selectedGroup = selectedGroup,
-                    onGroupSelected = onGroupSelected,
-                    modifier = Modifier.weight(1f)
-                )
+                val layout = dashboardLayoutForWidth(maxWidth.value.toInt())
 
-                IconButton(onClick = onFilterClick) {
-                    Icon(
-                        imageVector = Icons.Default.FilterList,
-                        contentDescription = "Open dashboard filters"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DashboardGroupSelector(
+                        groups = groups,
+                        selectedGroup = selectedGroup,
+                        onGroupSelected = onGroupSelected,
+                        modifier = Modifier.weight(1f)
                     )
-                }
-
-                IThingButton(
-                    text = if (isRefreshing) "Refreshing" else "Refresh",
-                    onClick = onRefresh,
-                    enabled = selectedCustomer && selectedDevice && !isRefreshing,
-                    isLoading = isRefreshing,
-                    leadingIcon = {
+                    IconButton(onClick = onFilterClick) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = null,
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = "Open dashboard filters"
                         )
-                    },
-                    modifier = Modifier.widthIn(min = 112.dp)
-                )
+                    }
+                    if (layout.stackActions) {
+                        DashboardRefreshIconButton(
+                            isRefreshing = isRefreshing,
+                            enabled = selectedCustomer && selectedDevice,
+                            onRefresh = onRefresh
+                        )
+                    } else {
+                        DashboardRefreshButton(
+                            isRefreshing = isRefreshing,
+                            enabled = selectedCustomer && selectedDevice,
+                            onRefresh = onRefresh,
+                            modifier = Modifier.widthIn(min = 112.dp)
+                        )
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun DashboardRefreshIconButton(
+    isRefreshing: Boolean,
+    enabled: Boolean,
+    onRefresh: () -> Unit
+) {
+    IconButton(
+        onClick = onRefresh,
+        enabled = enabled && !isRefreshing
+    ) {
+        Icon(
+            imageVector = Icons.Default.Refresh,
+            contentDescription = if (isRefreshing) "Refreshing dashboard" else "Refresh dashboard"
+        )
+    }
+}
+
+@Composable
+private fun DashboardRefreshButton(
+    isRefreshing: Boolean,
+    enabled: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    IThingButton(
+        text = if (isRefreshing) "Refreshing" else "Refresh",
+        onClick = onRefresh,
+        enabled = enabled && !isRefreshing,
+        isLoading = isRefreshing,
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = null
+            )
+        },
+        modifier = modifier
+    )
 }
 
 @Composable

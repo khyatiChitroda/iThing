@@ -15,6 +15,17 @@ sealed class WindowSizeClass {
     object Expanded : WindowSizeClass()
 }
 
+data class DashboardLayoutConfig(
+    val metricColumns: Int,
+    val stackActions: Boolean
+)
+
+fun dashboardLayoutForWidth(widthDp: Int): DashboardLayoutConfig = when {
+    widthDp < 420 -> DashboardLayoutConfig(metricColumns = 1, stackActions = true)
+    widthDp < 840 -> DashboardLayoutConfig(metricColumns = 2, stackActions = false)
+    else -> DashboardLayoutConfig(metricColumns = 3, stackActions = false)
+}
+
 @Composable
 fun rememberWindowSizeClass(): WindowSizeClass {
     val configuration = LocalConfiguration.current

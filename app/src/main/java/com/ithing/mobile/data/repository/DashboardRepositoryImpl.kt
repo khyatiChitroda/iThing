@@ -17,6 +17,7 @@ import com.ithing.mobile.data.remote.dto.reports.DeviceMappingRequestDto
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.DashboardWidget
 import com.ithing.mobile.domain.model.DashboardWidgetColorValues
+import com.ithing.mobile.domain.model.DashboardHeatMapLegendItem
 import com.ithing.mobile.domain.model.DashboardWidgetPoint
 import com.ithing.mobile.domain.model.DashboardWidgetSeries
 import com.ithing.mobile.domain.model.DashboardWidgetSource
@@ -224,41 +225,43 @@ class DashboardRepositoryImpl @Inject constructor(
         val collatedLatestLogs = collateParsedEvents(latestLogs, mappingPayload)
         val latestLog = collatedLatestLogs.lastOrNull()
 
-        if (latestLog != null && widgets.isNotEmpty()) {
-            val fields = widgets.first().sources.flatMap { it.fields }.distinct()
-            val keys = latestLog.values.keys
-            val matches = fields.count { it in keys }
-            println("DashboardRepository: telemetry keys matches=$matches fields=${fields.take(8)} keysSample=${keys.take(12)}")
+        val hasChartWidgets = widgets.any { it.type.equals("charts", ignoreCase = true) }
+        val collatedChartLogs = if (hasChartWidgets && chartLogs.isNotEmpty()) {
+            collateParsedEvents(logs = chartLogs, mappingPayload = mappingPayload)
+        } else {
+            emptyList()
         }
-
-        val collatedChartLogs = collateParsedEvents(chartLogs, mappingPayload)
         val chartLogsForRendering = collatedChartLogs.evenlySampled(MAX_RENDERED_CHART_POINTS)
         val enriched = widgets.map { widget ->
             val allFields = widget.sources.flatMap { it.fields }
             val valuesByField = allFields
                 .distinct()
                 .mapNotNull { field ->
-                    latestLog?.values?.get(field)?.let { value -> field to value }
+                    latestLog?.valueForField(field)?.let { value -> field to value }
                 }
                 .toMap()
 
-            val chartSeries = widget.sources
-                .flatMap { source -> source.fields }
-                .distinct()
-                .map { field ->
-                    DashboardWidgetSeries(
-                        label = widget.unit?.takeIf { it.isNotBlank() }?.let { "$field ($it)" } ?: field,
-                        points = chartLogsForRendering.mapNotNull { log ->
-                            val value = log.values[field] ?: return@mapNotNull null
-                            DashboardWidgetPoint(
-                                timestamp = log.timestamp,
-                                label = log.label,
-                                value = value
-                            )
-                        }
-                    )
-                }
-                .filter { it.points.isNotEmpty() }
+            val chartSeries = if (widget.type.equals("charts", ignoreCase = true)) {
+                widget.sources
+                    .flatMap { source -> source.fields }
+                    .distinct()
+                    .map { field ->
+                        DashboardWidgetSeries(
+                            label = widget.unit?.takeIf { it.isNotBlank() }?.let { "$field ($it)" } ?: field,
+                            points = chartLogsForRendering.mapNotNull { log ->
+                                val value = log.valueForField(field) ?: return@mapNotNull null
+                                DashboardWidgetPoint(
+                                    timestamp = log.timestamp,
+                                    label = log.label,
+                                    value = value
+                                )
+                            }
+                        )
+                    }
+                    .filter { it.points.isNotEmpty() }
+            } else {
+                emptyList()
+            }
 
             val currentValue = allFields.firstOrNull()?.let { field -> valuesByField[field] }
 
@@ -334,6 +337,7 @@ class DashboardRepositoryImpl @Inject constructor(
         val valueInputMode = get("valueInputMode").toStringValueOrNull()?.trim()?.lowercase()
         val bitSelection = get("bitSelection").toIntValueOrNull()
         val colorValues = get("colorValues").toColorValuesOrNull()
+        val heatMapLegend = get("heatMapLegend").toHeatMapLegend()
         return DashboardWidgetSource(
             fields = fields,
             icons = icons,
@@ -345,8 +349,31 @@ class DashboardRepositoryImpl @Inject constructor(
             bgColor = bgColor,
             valueInputMode = valueInputMode,
             bitSelection = bitSelection,
-            colorValues = colorValues
+            colorValues = colorValues,
+            heatMapLegend = heatMapLegend
         )
+    }
+
+    private fun JsonElement?.toHeatMapLegend(): List<DashboardHeatMapLegendItem> {
+        val legend = this as? JsonObject
+        val defaults = listOf(
+            Triple(listOf("gray", "idle"), "Idle", 0xFFAAAAAAL),
+            Triple(listOf("blue", "preHeating"), "Pre Heating", 0xFF0000FFL),
+            Triple(listOf("green", "cycleOn"), "Cycle On", 0xFF00FF00L),
+            Triple(listOf("red", "error"), "Error", 0xFFFF0000L)
+        )
+
+        return defaults.mapIndexedNotNull { index, (keys, fallbackLabel, color) ->
+            val entry = keys.firstNotNullOfOrNull { key -> legend?.get(key) }
+            val entryObject = entry as? JsonObject
+            val label = entryObject?.get("label").toStringValueOrNull()
+                ?: (entry as? JsonPrimitive)?.contentOrNull
+                ?: if (legend == null) fallbackLabel else return@mapIndexedNotNull null
+            val value = entryObject?.get("value").toDoubleValueOrNull()
+                ?: if (legend == null) index.toDouble() else return@mapIndexedNotNull null
+            if (label.isBlank()) return@mapIndexedNotNull null
+            DashboardHeatMapLegendItem(label = label, value = value, color = color)
+        }
     }
 
     private fun JsonElement.toFieldNames(): List<String> =
@@ -418,7 +445,8 @@ class DashboardRepositoryImpl @Inject constructor(
 
     private fun collateParsedEvents(
         logs: List<DashboardEventLogDto>,
-        mappingPayload: DeviceMappingPayloadDto
+        mappingPayload: DeviceMappingPayloadDto,
+        collateNearby: Boolean = true
     ): List<ParsedDashboardLog> {
         val parsedLogs = logs
             .mapNotNull { log ->
@@ -432,7 +460,7 @@ class DashboardRepositoryImpl @Inject constructor(
             }
             .sortedBy { it.timestamp }
 
-        if (parsedLogs.isEmpty()) return emptyList()
+        if (parsedLogs.isEmpty() || !collateNearby) return parsedLogs
 
         val collated = mutableListOf<ParsedDashboardLog>()
         parsedLogs.forEach { current ->
@@ -446,16 +474,6 @@ class DashboardRepositoryImpl @Inject constructor(
             }
         }
         return collated
-    }
-
-    private fun <T> List<T>.evenlySampled(maxPoints: Int): List<T> {
-        if (size <= maxPoints || maxPoints < 2) return this
-        val lastSourceIndex = lastIndex.toLong()
-        val lastTargetIndex = (maxPoints - 1).toLong()
-        return List(maxPoints) { targetIndex ->
-            val sourceIndex = (targetIndex.toLong() * lastSourceIndex / lastTargetIndex).toInt()
-            this[sourceIndex]
-        }
     }
 
     private fun parseEvent(
@@ -542,6 +560,15 @@ class DashboardRepositoryImpl @Inject constructor(
         }
     }
 
+    private fun ParsedDashboardLog.valueForField(field: String): Double? {
+        values[field]?.let { return it }
+        val normalizedField = field.trim()
+        values[normalizedField]?.let { return it }
+        return values.entries.firstOrNull { (name, _) ->
+            name.trim().equals(normalizedField, ignoreCase = true)
+        }?.value
+    }
+
     private fun applyScaling(
         value: Double,
         field: DeviceMappingFieldDto
@@ -609,7 +636,6 @@ class DashboardRepositoryImpl @Inject constructor(
         private const val FETCH_EVENTS_URL =
             "https://o4jvg4ubjkowz6rurqqkndzelm0tuqsq.lambda-url.ap-south-1.on.aws/fetch-events"
         private const val LOG_COLLATION_WINDOW_MS = 100_000L
-        private const val MAX_RENDERED_CHART_POINTS = 120
         private val DASHBOARD_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")
         private val DASHBOARD_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss")
         private val DASHBOARD_TIME_LABEL_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)

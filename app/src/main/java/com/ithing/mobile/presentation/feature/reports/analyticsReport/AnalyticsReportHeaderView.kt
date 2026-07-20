@@ -76,8 +76,7 @@ internal class AnalyticsReportHeaderView(context: Context) : View(context) {
 
         val leftBitmap = oemBitmap
         leftBitmap?.let { bmp ->
-            val scaled = scaleToHeight(bmp, leftLogoH)
-            bottomY = maxOf(bottomY, logoTop + scaled.height)
+            bottomY = maxOf(bottomY, logoTop + leftLogoH)
         }
 
         val rightBitmap = ithingBitmap ?: run {
@@ -88,8 +87,7 @@ internal class AnalyticsReportHeaderView(context: Context) : View(context) {
             b
         }
         rightBitmap?.let { bmp ->
-            val scaled = scaleToHeight(bmp, rightLogoH)
-            bottomY = maxOf(bottomY, logoTop + 4f + scaled.height)
+            bottomY = maxOf(bottomY, logoTop + 4f + rightLogoH)
         }
 
         val metaTop = bottomY + 18f
@@ -106,26 +104,26 @@ internal class AnalyticsReportHeaderView(context: Context) : View(context) {
         val rightLogoH = 48f // iThing
 
         oemBitmap?.let { bmp ->
-            val scaled = scaleToHeight(bmp, leftLogoH)
-            val dst = RectF(marginPx, logoTop, marginPx + scaled.width, logoTop + scaled.height)
-            canvas.drawBitmap(scaled, null, dst, null)
+            val width = scaledWidth(bmp, leftLogoH)
+            val dst = RectF(marginPx, logoTop, marginPx + width, logoTop + leftLogoH)
+            canvas.drawBitmap(bmp, null, dst, null)
         }
 
         (ithingBitmap ?: runCatching {
             BitmapFactory.decodeResource(context.resources, R.drawable.ithing_logo)
         }.getOrNull())?.let { bmp ->
             ithingBitmap = bmp
-            val scaled = scaleToHeight(bmp, rightLogoH)
-            val left = pageWidthPx - marginPx - scaled.width
-            val dst = RectF(left, logoTop + 4f, left + scaled.width, logoTop + 4f + scaled.height)
-            canvas.drawBitmap(scaled, null, dst, null)
+            val width = scaledWidth(bmp, rightLogoH)
+            val left = pageWidthPx - marginPx - width
+            val dst = RectF(left, logoTop + 4f, left + width, logoTop + 4f + rightLogoH)
+            canvas.drawBitmap(bmp, null, dst, null)
         }
 
         val logosBottom = run {
             var bottom = logoTop
-            oemBitmap?.let { bottom = maxOf(bottom, logoTop + scaleToHeight(it, leftLogoH).height) }
+            oemBitmap?.let { bottom = maxOf(bottom, logoTop + leftLogoH) }
             ithingBitmap?.let {
-                bottom = maxOf(bottom, logoTop + 4f + scaleToHeight(it, rightLogoH).height)
+                bottom = maxOf(bottom, logoTop + 4f + rightLogoH)
             }
             bottom
         }
@@ -155,11 +153,7 @@ internal class AnalyticsReportHeaderView(context: Context) : View(context) {
         canvas.drawText("Performance Report", pageWidthPx / 2f, titleY, titlePaint)
     }
 
-    private fun scaleToHeight(bitmap: Bitmap, targetHeight: Float): Bitmap {
-        if (bitmap.height <= 0) return bitmap
-        val scale = targetHeight / bitmap.height.toFloat()
-        val targetW = (bitmap.width * scale).toInt().coerceAtLeast(1)
-        val targetH = targetHeight.toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(bitmap, targetW, targetH, true)
-    }
+    private fun scaledWidth(bitmap: Bitmap, targetHeight: Float): Float =
+        if (bitmap.height <= 0) targetHeight
+        else (bitmap.width * (targetHeight / bitmap.height.toFloat())).coerceAtLeast(1f)
 }

@@ -1,6 +1,7 @@
 package com.ithing.mobile.di
 
 import com.ithing.mobile.core.network.AuthInterceptor
+import com.ithing.mobile.BuildConfig
 import com.ithing.mobile.data.remote.api.AuthApiService
 import com.ithing.mobile.data.remote.api.DashboardApi
 import com.ithing.mobile.data.remote.api.ReportsApi
@@ -25,11 +26,18 @@ object NetworkModule {
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor
     ): OkHttpClient {
-        val logging = HttpLoggingInterceptor()
-        logging.level = HttpLoggingInterceptor.Level.BODY
         return OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
-            .addInterceptor(logging)
+            .apply {
+                if (BuildConfig.DEBUG) {
+                    addInterceptor(
+                        HttpLoggingInterceptor().apply {
+                            redactHeader("Authorization")
+                            level = HttpLoggingInterceptor.Level.BASIC
+                        }
+                    )
+                }
+            }
             .build()
     }
 

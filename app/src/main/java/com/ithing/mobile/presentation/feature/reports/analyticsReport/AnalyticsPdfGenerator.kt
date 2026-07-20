@@ -41,6 +41,7 @@ internal object AnalyticsPdfGenerator {
         val sectionGap = 8f
 
         val document = PdfDocument()
+        var downloadedOemBitmap: Bitmap? = null
         try {
             var pageNumber = 1
             var page = document.startPage(
@@ -74,7 +75,7 @@ internal object AnalyticsPdfGenerator {
             }
 
             val headerView = AnalyticsReportHeaderView(context).apply {
-                val oemBitmap = oemLogoUrl?.let { fetchBitmap(it) }
+                downloadedOemBitmap = oemLogoUrl?.let { fetchBitmap(it) }
                 bind(
                     pageWidthPx = pageWidth.toFloat(),
                     marginPx = margin,
@@ -84,7 +85,7 @@ internal object AnalyticsPdfGenerator {
                     fromLabel = fromLabel,
                     toLabel = toLabel,
                     ithingLogo = null,
-                    oemLogo = oemBitmap
+                    oemLogo = downloadedOemBitmap
                 )
             }
 
@@ -123,20 +124,23 @@ internal object AnalyticsPdfGenerator {
             return file
         } finally {
             document.close()
+            downloadedOemBitmap?.takeUnless { it.isRecycled }?.recycle()
         }
     }
 
     private fun fetchBitmap(urlString: String): Bitmap? {
+        var connection: HttpURLConnection? = null
         return runCatching {
             val url = URL(urlString)
-            val conn = (url.openConnection() as HttpURLConnection).apply {
+            connection = (url.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 3500
                 readTimeout = 3500
                 instanceFollowRedirects = true
             }
+            val conn = connection ?: return@runCatching null
             conn.connect()
             if (conn.responseCode !in 200..299) return@runCatching null
             BufferedInputStream(conn.inputStream).use { stream -> BitmapFactory.decodeStream(stream) }
-        }.getOrNull()
+        }.getOrNull().also { connection?.disconnect() }
     }
 }
