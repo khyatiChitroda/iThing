@@ -11,26 +11,24 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items as lazyItems
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Bolt
@@ -54,6 +52,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -63,14 +63,12 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Clock3
+import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Thermometer
 import com.ithing.mobile.domain.model.DashboardWidget
@@ -78,8 +76,8 @@ import com.ithing.mobile.domain.model.DashboardWidgetColorValues
 import com.ithing.mobile.domain.model.DashboardWidgetSeries
 import com.ithing.mobile.presentation.theme.LightGrayBg
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private val DashboardWidgetCardShape = RoundedCornerShape(16.dp)
@@ -135,6 +133,8 @@ private val ChartSeriesColors = listOf(
     Color(0xFFFF7E2F),
     Color(0xFF9DB2BF)
 )
+
+private const val BAR_CHART_AXIS_STEP = 200.0
 
 private val PolarAreaColors = listOf(
     Color(0xFFB8C0D6),
@@ -241,6 +241,8 @@ fun LazyListScope.dashboardWidgetGridItems(
                         block.widget.isDonutLikeChart() ||
                             block.widget.isPieChart() ||
                             block.widget.isPolarAreaChart() ||
+                            block.widget.isAreaChart() ||
+                            block.widget.isBarChart() ||
                             block.widget.isScatterChart() ||
                             block.widget.isStateChart()
                     Card(
@@ -887,7 +889,9 @@ private fun String.toPrimaryGaugeUnitLabel(): String {
     val compact = trim()
     return when {
         compact.isBlank() -> ""
-        compact.startsWith("°") && compact.length > 1 -> compact.first() + " " + compact.drop(1).trim()
+        compact.startsWith("°") && compact.length > 1 -> compact.first() + " " + compact.drop(1)
+            .trim()
+
         else -> compact
     }
 }
@@ -1635,15 +1639,15 @@ private fun DashboardWidget.isCompositeStyleWidget(): Boolean {
     val titleKey = title.lowercase()
     val looksCompositeTitle =
         "cycle on" in titleKey &&
-            ("date" in titleKey || "time" in titleKey || "duration" in titleKey)
+                ("date" in titleKey || "time" in titleKey || "duration" in titleKey)
     val looksCompositeFields = fields.any { field ->
         val fieldKey = field.lowercase()
         "cycle on" in fieldKey &&
-            ("date" in fieldKey || "time" in fieldKey || "duration" in fieldKey)
+                ("date" in fieldKey || "time" in fieldKey || "duration" in fieldKey)
     }
 
     return (typeKey == "comparison" || typeKey == "cards" || typeKey.isBlank()) &&
-        (looksCompositeTitle || looksCompositeFields)
+            (looksCompositeTitle || looksCompositeFields)
 }
 
 @Composable
@@ -1773,11 +1777,12 @@ private fun compositeFieldGroupSize(label: String, remaining: Int): Int {
     return when {
         remaining >= 3 && "date" in normalized -> 3
         remaining >= 2 && (
-            "time" in normalized ||
-                "duration" in normalized ||
-                "hour" in normalized ||
-                "min" in normalized
-            ) -> 2
+                "time" in normalized ||
+                        "duration" in normalized ||
+                        "hour" in normalized ||
+                        "min" in normalized
+                ) -> 2
+
         else -> 1
     }
 }
@@ -3463,6 +3468,8 @@ private data class CircularChartItem(
 private fun DashboardChartCard(widget: DashboardWidget) {
     when {
         widget.isStateChart() -> DashboardStateChartCard(widget = widget)
+        widget.isAreaChart() -> DashboardAreaChartCard(widget = widget)
+        widget.isBarChart() -> DashboardBarChartCard(widget = widget)
         widget.isScatterChart() -> DashboardScatterChartCard(widget = widget)
         widget.isPolarAreaChart() -> DashboardPolarAreaChartCard(widget = widget)
         widget.isPieChart() -> DashboardPieChartCard(widget = widget)
@@ -3520,7 +3527,8 @@ private fun DashboardDonutChartCard(widget: DashboardWidget) {
                 y = (size.height - chartDiameter) / 2f
             )
             val arcSize = androidx.compose.ui.geometry.Size(chartDiameter, chartDiameter)
-            val total = drawableSlices.sumOf { it.value ?: 0.0 }.takeIf { it > 0.0 } ?: return@Canvas
+            val total =
+                drawableSlices.sumOf { it.value ?: 0.0 }.takeIf { it > 0.0 } ?: return@Canvas
             val gapDegrees = if (drawableSlices.size > 1) 0.35f else 0f
             var startAngle = -90f
 
@@ -3591,7 +3599,8 @@ private fun DashboardPieChartCard(widget: DashboardWidget) {
                 y = (size.height - diameter) / 2f
             )
             val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
-            val total = drawableSlices.sumOf { it.value ?: 0.0 }.takeIf { it > 0.0 } ?: return@Canvas
+            val total =
+                drawableSlices.sumOf { it.value ?: 0.0 }.takeIf { it > 0.0 } ?: return@Canvas
             val gapDegrees = if (drawableSlices.size > 1) 0.3f else 0f
             var startAngle = -90f
 
@@ -3694,7 +3703,8 @@ private fun PolarAreaCanvas(
 
         drawableSlices.forEachIndexed { index, item ->
             val value = item.value ?: return@forEachIndexed
-            val sliceRadius = (radius * ((value + maxValue) / (2.0 * maxValue)).coerceIn(0.0, 1.0)).toFloat()
+            val sliceRadius =
+                (radius * ((value + maxValue) / (2.0 * maxValue)).coerceIn(0.0, 1.0)).toFloat()
             val topLeft = androidx.compose.ui.geometry.Offset(
                 x = center.x - sliceRadius,
                 y = center.y - sliceRadius
@@ -3814,6 +3824,18 @@ private fun DashboardWidget.isPolarAreaChart(): Boolean {
     return typeKey == "charts" && subTypeKey in setOf("polar area", "polararea", "polar")
 }
 
+private fun DashboardWidget.isAreaChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase().replace("_", " ").replace("-", " ")
+    return typeKey == "charts" && subTypeKey in setOf("area", "area chart", "areachart")
+}
+
+private fun DashboardWidget.isBarChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase().replace("_", " ").replace("-", " ")
+    return typeKey == "charts" && subTypeKey in setOf("bar", "bar chart", "barchart")
+}
+
 private fun DashboardWidget.isScatterChart(): Boolean {
     val typeKey = type.trim().lowercase()
     val subTypeKey = subType.orEmpty().trim().lowercase().replace("_", " ").replace("-", " ")
@@ -3889,7 +3911,8 @@ private fun DashboardWidget.polarChartItems(): List<CircularChartItem> {
         }
         val label = fallbackSeries?.label ?: field.withWidgetUnit(unit)
         val currentValue = valuesByField[field]?.takeIf { it.isFinite() }
-        val latestSeriesValue = fallbackSeries?.points?.lastOrNull()?.value?.takeIf { it.isFinite() }
+        val latestSeriesValue =
+            fallbackSeries?.points?.lastOrNull()?.value?.takeIf { it.isFinite() }
         CircularChartItem(
             label = label,
             value = currentValue ?: latestSeriesValue,
@@ -3933,6 +3956,349 @@ private fun Double.formatPolarAxisLabel(): String =
 private fun String.withWidgetUnit(unit: String?): String {
     val unitText = unit?.takeIf { it.isNotBlank() } ?: return this
     return "$this ($unitText)"
+}
+
+@Composable
+private fun DashboardBarChartCard(widget: DashboardWidget) {
+    val plottedSeries = remember(widget) {
+        widget.chartSeries
+            .filter { it.points.isNotEmpty() }
+            .toHourlyChartSamples()
+    }
+    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() } ?: "BarChart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() } ?: "BarChart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF6A6A6A),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (plottedSeries.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        BarLegendGrid(series = plottedSeries)
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
+        ) {
+            val allValues = plottedSeries.flatMap { it.points }.map { it.value }
+            val rawMin = allValues.minOrNull() ?: 0.0
+            val rawMax = allValues.maxOrNull() ?: 1.0
+            val yMin = rawMin.niceBarAxisMin()
+            val yMax = rawMax.niceBarAxisMax()
+                .takeIf { it > yMin }
+                ?: (yMin + BAR_CHART_AXIS_STEP)
+            val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: BAR_CHART_AXIS_STEP
+
+            val leftPadding = 42f
+            val rightPadding = 8f
+            val topPadding = 8f
+            val bottomPadding = 52f
+            val plotLeft = leftPadding
+            val plotTop = topPadding
+            val plotRight = size.width - rightPadding
+            val plotBottom = size.height - bottomPadding
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+            val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
+            val verticalSteps = ((valueRange / BAR_CHART_AXIS_STEP).roundToInt()).coerceIn(4, 8)
+            val gridColor = Color(0xFFE1E5EA)
+
+            fun yForValue(value: Double): Float =
+                plotBottom - (((value - yMin) / valueRange).toFloat() * plotHeight)
+
+            repeat(verticalSteps + 1) { step ->
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(plotLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(plotRight, y),
+                    strokeWidth = 1f
+                )
+            }
+            repeat(horizontalSteps + 1) { step ->
+                val x = plotLeft + (plotWidth * step / horizontalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1f
+                )
+            }
+
+            val yLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 16f
+                isAntiAlias = true
+            }
+            repeat(verticalSteps + 1) { step ->
+                val value = yMax - (valueRange * step / verticalSteps)
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.formatBarAxisLabel(),
+                    plotLeft - 8f,
+                    y + 6f,
+                    yLabelPaint
+                )
+            }
+
+            val zeroY = yForValue(0.0.coerceIn(yMin, yMax))
+            val groupCount = xLabels.size.coerceAtLeast(1)
+            val groupWidth = plotWidth / groupCount
+            val seriesCount = plottedSeries.size.coerceAtLeast(1)
+            val totalBarWidth = groupWidth * 0.68f
+            val barWidth = (totalBarWidth / seriesCount).coerceAtMost(14f).coerceAtLeast(2f)
+            val firstBarOffset = -(barWidth * seriesCount) / 2f
+
+            xLabels.forEachIndexed { pointIndex, _ ->
+                val groupCenterX = plotLeft + (groupWidth * pointIndex) + (groupWidth / 2f)
+                plottedSeries.forEachIndexed { seriesIndex, series ->
+                    val point = series.points.getOrNull(pointIndex) ?: return@forEachIndexed
+                    val y = yForValue(point.value)
+                    val barLeft = groupCenterX + firstBarOffset + (seriesIndex * barWidth)
+                    val barTop = kotlin.math.min(y, zeroY)
+                    val barHeight = abs(zeroY - y).coerceAtLeast(1f)
+                    drawRect(
+                        color = ChartSeriesColors[seriesIndex.mod(ChartSeriesColors.size)],
+                        topLeft = androidx.compose.ui.geometry.Offset(barLeft, barTop),
+                        size = androidx.compose.ui.geometry.Size(barWidth * 0.82f, barHeight)
+                    )
+                }
+            }
+
+            val xLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
+                isAntiAlias = true
+            }
+            xLabels.forEachIndexed { index, label ->
+                val x = if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * index / (xLabels.size - 1))
+                }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    x,
+                    plotBottom + 28f,
+                    xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardAreaChartCard(widget: DashboardWidget) {
+    val plottedSeries = remember(widget) {
+        widget.chartSeries
+            .filter { it.points.isNotEmpty() }
+            .toHourlyChartSamples()
+    }
+    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() } ?: "Area Chart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (plottedSeries.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        AreaLegendGrid(series = plottedSeries)
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
+        ) {
+            val allValues = plottedSeries.flatMap { it.points }.map { it.value }
+            val rawMin = allValues.minOrNull() ?: 0.0
+            val rawMax = allValues.maxOrNull() ?: 1.0
+
+            val axisStep = 500.0
+            val yMin = kotlin.math.floor(rawMin / axisStep) * axisStep
+            val yMax = kotlin.math.ceil(rawMax / axisStep) * axisStep
+            val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: axisStep
+
+            val leftPadding = 48f
+            val rightPadding = 10f
+            val topPadding = 8f
+            val bottomPadding = 52f
+            val plotLeft = leftPadding
+            val plotTop = topPadding
+            val plotRight = size.width - rightPadding
+            val plotBottom = size.height - bottomPadding
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+            val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
+            val verticalSteps = 4
+            val gridColor = Color(0xFFE1E5EA)
+
+            fun yForValue(value: Double): Float =
+                plotBottom - (((value - yMin) / valueRange).toFloat() * plotHeight)
+
+            repeat(verticalSteps + 1) { step ->
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(plotLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(plotRight, y),
+                    strokeWidth = 1f
+                )
+            }
+            repeat(horizontalSteps + 1) { step ->
+                val x = plotLeft + (plotWidth * step / horizontalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1f
+                )
+            }
+
+            val yLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(65, 74, 86)
+                textAlign = Paint.Align.RIGHT
+                textSize = 16f
+                isAntiAlias = true
+            }
+            repeat(verticalSteps + 1) { step ->
+                val value = yMax - (valueRange * step / verticalSteps)
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.formatAreaAxisLabel(),
+                    plotLeft - 8f,
+                    y + 6f,
+                    yLabelPaint
+                )
+            }
+
+            val zeroBaseline = yForValue(0.0.coerceIn(yMin, yMax))
+            plottedSeries.forEachIndexed { seriesIndex, series ->
+                val color = ChartSeriesColors[seriesIndex.mod(ChartSeriesColors.size)]
+                val points = series.points
+                if (points.isEmpty()) return@forEachIndexed
+
+                val linePath = Path()
+                val areaPath = Path()
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                    }
+                    val y = yForValue(point.value)
+                    if (pointIndex == 0) {
+                        linePath.moveTo(x, y)
+                        areaPath.moveTo(x, zeroBaseline)
+                        areaPath.lineTo(x, y)
+                    } else {
+                        linePath.lineTo(x, y)
+                        areaPath.lineTo(x, y)
+                    }
+                    if (pointIndex == points.lastIndex) {
+                        areaPath.lineTo(x, zeroBaseline)
+                        areaPath.close()
+                    }
+                }
+
+                drawPath(
+                    path = areaPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(color.copy(alpha = 0.5f), color.copy(alpha = 0.1f)),
+                        startY = plotTop,
+                        endY = plotBottom
+                    )
+                )
+                drawPath(
+                    path = linePath,
+                    color = color,
+                    style = Stroke(width = 3f, cap = StrokeCap.Round)
+                )
+            }
+
+            val xLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
+                isAntiAlias = true
+            }
+            xLabels.forEachIndexed { index, label ->
+                val x = if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * index / (xLabels.size - 1))
+                }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    x,
+                    plotBottom + 28f,
+                    xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
 }
 
 @Composable
@@ -4047,7 +4413,8 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
                     } else {
                         plotLeft + (plotWidth * pointIndex / (points.size - 1))
                     }
-                    val y = plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
+                    val y =
+                        plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
                     if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
                 drawPath(
@@ -4062,8 +4429,13 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
                     } else {
                         plotLeft + (plotWidth * pointIndex / (points.size - 1))
                     }
-                    val y = plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
-                    drawCircle(color = Color.White, radius = 4.5f, center = androidx.compose.ui.geometry.Offset(x, y))
+                    val y =
+                        plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
+                    drawCircle(
+                        color = Color.White,
+                        radius = 4.5f,
+                        center = androidx.compose.ui.geometry.Offset(x, y)
+                    )
                     drawCircle(
                         color = color,
                         radius = 4.5f,
@@ -4152,13 +4524,14 @@ private fun DashboardScatterChartCard(widget: DashboardWidget) {
             val configuredMax = widget.scatterConfiguredMax()
             val yMin = configuredMin
                 ?: if (rawMin >= 0.0) 0.0 else rawMin.niceScatterMin()
-            val yMax = (configuredMax ?: rawMax.niceScatterMax()).takeIf { it > yMin } ?: (yMin + 1.0)
+            val yMax =
+                (configuredMax ?: rawMax.niceScatterMax()).takeIf { it > yMin } ?: (yMin + 1.0)
             val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: 1.0
 
             val leftPadding = 42f
             val rightPadding = 10f
             val topPadding = 8f
-            val bottomPadding = 34f
+            val bottomPadding = 52f
             val plotLeft = leftPadding
             val plotTop = topPadding
             val plotRight = size.width - rightPadding
@@ -4215,7 +4588,8 @@ private fun DashboardScatterChartCard(widget: DashboardWidget) {
                     } else {
                         plotLeft + (plotWidth * pointIndex / (points.size - 1))
                     }
-                    val y = plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
+                    val y =
+                        plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
                     drawCircle(
                         color = color,
                         radius = 4.8f,
@@ -4226,8 +4600,8 @@ private fun DashboardScatterChartCard(widget: DashboardWidget) {
 
             val xLabelPaint = Paint().apply {
                 color = android.graphics.Color.rgb(111, 118, 128)
-                textAlign = Paint.Align.CENTER
-                textSize = 22f
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
                 isAntiAlias = true
             }
             xLabels.forEachIndexed { index, label ->
@@ -4236,11 +4610,82 @@ private fun DashboardScatterChartCard(widget: DashboardWidget) {
                 } else {
                     plotLeft + (plotWidth * index / (xLabels.size - 1))
                 }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
                 drawContext.canvas.nativeCanvas.drawText(
                     label,
                     x,
-                    size.height - 8f,
+                    plotBottom + 28f,
                     xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun BarLegendGrid(series: List<DashboardWidgetSeries>) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height((((series.size + 1) / 2) * 24).dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        userScrollEnabled = false
+    ) {
+        items(series, key = { it.label }) { item ->
+            val color = ChartSeriesColors[series.indexOf(item).mod(ChartSeriesColors.size)]
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 40.dp, height = 13.dp)
+                        .background(color, RoundedCornerShape(1.dp))
+                )
+                Text(
+                    text = item.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF66768C),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AreaLegendGrid(series: List<DashboardWidgetSeries>) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height((((series.size + 1) / 2) * 24).dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        userScrollEnabled = false
+    ) {
+        items(series, key = { it.label }) { item ->
+            val color = ChartSeriesColors[series.indexOf(item).mod(ChartSeriesColors.size)]
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(color, CircleShape)
+                )
+                Text(
+                    text = item.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF414A56),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -4369,7 +4814,12 @@ private fun StateChartLegendGrid(series: List<DashboardWidgetSeries>) {
 
 private fun DashboardWidget.stateAxisAbsMax(values: List<Double>): Double {
     val configuredMax = sources
-        .flatMap { source -> source.minValues + source.maxValues + listOf(source.minValue, source.maxValue) }
+        .flatMap { source ->
+            source.minValues + source.maxValues + listOf(
+                source.minValue,
+                source.maxValue
+            )
+        }
         .filterNotNull()
         .filter { it.isFinite() }
         .maxOfOrNull { abs(it) }
@@ -4442,6 +4892,31 @@ private fun Double.formatScatterAxisLabel(): String =
         formatOneDecimal()
     }
 
+private fun Double.formatAreaAxisLabel(): String =
+    String.format(java.util.Locale.US, "%.2f", this)
+
+private fun Double.niceBarAxisMin(): Double {
+    val value = takeIf { it.isFinite() } ?: return 0.0
+    return kotlin.math.floor(kotlin.math.min(value, 0.0) / BAR_CHART_AXIS_STEP) * BAR_CHART_AXIS_STEP
+}
+
+private fun Double.niceBarAxisMax(): Double {
+    val value = takeIf { it.isFinite() } ?: return BAR_CHART_AXIS_STEP
+    val max = kotlin.math.ceil(kotlin.math.max(value, 0.0) / BAR_CHART_AXIS_STEP) * BAR_CHART_AXIS_STEP
+    return if (max == 0.0) BAR_CHART_AXIS_STEP else max
+}
+
+private fun Double.niceLineAxisMin(): Double = niceBarAxisMin()
+
+private fun Double.niceLineAxisMax(): Double = niceBarAxisMax()
+
+private fun Double.formatBarAxisLabel(): String =
+    if (this % 1.0 == 0.0) {
+        this.toInt().toString()
+    } else {
+        formatOneDecimal()
+    }
+
 private fun Double.formatStateAxisLabel(): String =
     if (abs(this) >= 10.0 && this % 1.0 == 0.0) {
         this.toInt().toString()
@@ -4484,27 +4959,35 @@ private fun CircularChartLegendGrid(items: List<CircularChartItem>) {
 
 @Composable
 private fun DashboardLineChartCard(widget: DashboardWidget) {
-    val series = widget.chartSeries.filter { it.points.isNotEmpty() }
-    val xLabels = series.firstOrNull()?.points?.map { it.label }.orEmpty().takeLast(8)
-    val plottedSeries = series.map { source ->
-        source.copy(points = source.points.takeLast(8))
+    val plottedSeries = remember(widget) {
+        widget.chartSeries
+            .filter { it.points.isNotEmpty() }
+            .toHourlyChartSamples()
     }
+    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
     val allValues = plottedSeries.flatMap { it.points }.map { it.value }
-    val minValue = allValues.minOrNull() ?: 0.0
-    val maxValue = allValues.maxOrNull() ?: 1.0
-    val valueRange = (maxValue - minValue).takeIf { it > 0.0 } ?: 1.0
+    val rawMin = allValues.minOrNull() ?: 0.0
+    val rawMax = allValues.maxOrNull() ?: 1.0
+    val yMin = rawMin.niceLineAxisMin()
+    val yMax = rawMax.niceLineAxisMax()
+        .takeIf { it > yMin }
+        ?: (yMin + BAR_CHART_AXIS_STEP)
+    val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: BAR_CHART_AXIS_STEP
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = widget.unit?.takeIf { it.isNotBlank() } ?: widget.title,
+            text = widget.title.takeIf { it.isNotBlank() } ?: "Line Chart",
             modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.headlineSmall,
-            color = Color(0xFF223461),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         if (plottedSeries.isEmpty()) {
@@ -4518,113 +5001,156 @@ private fun DashboardLineChartCard(widget: DashboardWidget) {
             return
         }
 
-        LegendGrid(series = plottedSeries)
+        LineLegendGrid(series = plottedSeries)
 
-        Box(
+        Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(260.dp)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .padding(horizontal = 12.dp, vertical = 16.dp)
+                .height(250.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
         ) {
-            val chartSize = remember { mutableStateOf(IntSize.Zero) }
+            val leftPadding = 42f
+            val rightPadding = 8f
+            val topPadding = 8f
+            val bottomPadding = 52f
+            val plotLeft = leftPadding
+            val plotTop = topPadding
+            val plotRight = size.width - rightPadding
+            val plotBottom = size.height - bottomPadding
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+            val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
+            val verticalSteps = ((valueRange / BAR_CHART_AXIS_STEP).roundToInt()).coerceIn(4, 8)
+            val gridColor = Color(0xFFE1E5EA)
 
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .onSizeChanged { chartSize.value = it }
-            ) {
-                val width = size.width
-                val height = size.height
-                val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
-                val verticalGridLines = 5
+            fun yForValue(value: Double): Float =
+                plotBottom - (((value - yMin) / valueRange).toFloat() * plotHeight)
 
-                repeat(verticalGridLines + 1) { step ->
-                    val y = height * step / verticalGridLines
-                    drawLine(
-                        color = Color(0xFFD9DFE8),
-                        start = androidx.compose.ui.geometry.Offset(0f, y),
-                        end = androidx.compose.ui.geometry.Offset(width, y),
-                        strokeWidth = 1f
-                    )
+            repeat(verticalSteps + 1) { step ->
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(plotLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(plotRight, y),
+                    strokeWidth = 1f
+                )
+            }
+            repeat(horizontalSteps + 1) { step ->
+                val x = plotLeft + (plotWidth * step / horizontalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1f
+                )
+            }
+
+            val yLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 16f
+                isAntiAlias = true
+            }
+            repeat(verticalSteps + 1) { step ->
+                val value = yMax - (valueRange * step / verticalSteps)
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.formatBarAxisLabel(),
+                    plotLeft - 8f,
+                    y + 6f,
+                    yLabelPaint
+                )
+            }
+
+            plottedSeries.forEachIndexed { index, dashboardWidgetSeries ->
+                val points = dashboardWidgetSeries.points
+                if (points.isEmpty()) return@forEachIndexed
+
+                val path = Path()
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                    }
+                    val y = yForValue(point.value)
+                    if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
 
-                repeat(horizontalSteps + 1) { step ->
-                    val x = width * step / horizontalSteps
-                    drawLine(
-                        color = Color(0xFFD9DFE8),
-                        start = androidx.compose.ui.geometry.Offset(x, 0f),
-                        end = androidx.compose.ui.geometry.Offset(x, height),
-                        strokeWidth = 1f
-                    )
-                }
+                val color = ChartSeriesColors[index.mod(ChartSeriesColors.size)]
+                drawPath(
+                    path = path,
+                    color = color,
+                    style = Stroke(width = 3f, cap = StrokeCap.Round)
+                )
 
-                plottedSeries.forEachIndexed { index, dashboardWidgetSeries ->
-                    val points = dashboardWidgetSeries.points
-                    if (points.isEmpty()) return@forEachIndexed
-
-                    val path = Path()
-                    points.forEachIndexed { pointIndex, point ->
-                        val x = if (points.size == 1) {
-                            width / 2f
-                        } else {
-                            width * pointIndex / (points.size - 1)
-                        }
-                        val y =
-                            height - (((point.value - minValue) / valueRange).toFloat() * height)
-                        if (pointIndex == 0) {
-                            path.moveTo(x, y)
-                        } else {
-                            path.lineTo(x, y)
-                        }
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
                     }
-
-                    val color = ChartSeriesColors[index.mod(ChartSeriesColors.size)]
-                    drawPath(
-                        path = path,
-                        color = color,
-                        style = Stroke(width = 5f, cap = StrokeCap.Round)
-                    )
-
-                    points.forEachIndexed { pointIndex, point ->
-                        val x =
-                            if (points.size == 1) width / 2f else width * pointIndex / (points.size - 1)
-                        val y =
-                            height - (((point.value - minValue) / valueRange).toFloat() * height)
-                        drawCircle(
-                            color = color,
-                            radius = 6f,
-                            center = androidx.compose.ui.geometry.Offset(x, y)
-                        )
-                        drawCircle(
-                            color = Color.White,
-                            radius = 3f,
-                            center = androidx.compose.ui.geometry.Offset(x, y)
-                        )
-                    }
+                    val y = yForValue(point.value)
+                    drawCircle(color = color, radius = 4.5f, center = androidx.compose.ui.geometry.Offset(x, y))
+                    drawCircle(color = Color.White, radius = 2.2f, center = androidx.compose.ui.geometry.Offset(x, y))
                 }
             }
 
-            if (chartSize.value.width > 0 && xLabels.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomCenter),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    xLabels.forEach { label ->
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+            val xLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
+                isAntiAlias = true
+            }
+            xLabels.forEachIndexed { index, label ->
+                val x = if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * index / (xLabels.size - 1))
                 }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    x,
+                    plotBottom + 28f,
+                    xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun LineLegendGrid(series: List<DashboardWidgetSeries>) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height((((series.size + 1) / 2) * 24).dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        userScrollEnabled = false
+    ) {
+        items(series, key = { it.label }) { item ->
+            val color = ChartSeriesColors[series.indexOf(item).mod(ChartSeriesColors.size)]
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 40.dp, height = 13.dp)
+                        .background(color, RoundedCornerShape(1.dp))
+                )
+                Text(
+                    text = item.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF66768C),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

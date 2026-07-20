@@ -233,7 +233,6 @@ class DashboardRepositoryImpl @Inject constructor(
 
         val collatedChartLogs = collateParsedEvents(chartLogs, mappingPayload)
         val chartLogsForRendering = collatedChartLogs.evenlySampled(MAX_RENDERED_CHART_POINTS)
-
         val enriched = widgets.map { widget ->
             val allFields = widget.sources.flatMap { it.fields }
             val valuesByField = allFields
