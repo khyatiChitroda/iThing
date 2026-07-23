@@ -26,7 +26,7 @@ import javax.inject.Inject
 import java.time.LocalDate
 import java.time.ZoneId
 
-private const val DASHBOARD_CHART_LOG_LIMIT = 10
+private const val DASHBOARD_CHART_LOG_LIMIT = 2_000
 private const val ONE_HOUR_MS = 60 * 60 * 1_000L
 
 data class DashboardUiState(
