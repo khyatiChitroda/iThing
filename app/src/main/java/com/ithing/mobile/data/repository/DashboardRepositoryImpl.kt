@@ -476,6 +476,16 @@ class DashboardRepositoryImpl @Inject constructor(
         return collated
     }
 
+    private fun <T> List<T>.evenlySampled(maxPoints: Int): List<T> {
+        if (size <= maxPoints || maxPoints < 2) return this
+        val lastSourceIndex = lastIndex.toLong()
+        val lastTargetIndex = (maxPoints - 1).toLong()
+        return List(maxPoints) { targetIndex ->
+            val sourceIndex = (targetIndex.toLong() * lastSourceIndex / lastTargetIndex).toInt()
+            this[sourceIndex]
+        }
+    }
+
     private fun parseEvent(
         rawData: Map<String, String>,
         mappingPayload: DeviceMappingPayloadDto
@@ -636,6 +646,7 @@ class DashboardRepositoryImpl @Inject constructor(
         private const val FETCH_EVENTS_URL =
             "https://o4jvg4ubjkowz6rurqqkndzelm0tuqsq.lambda-url.ap-south-1.on.aws/fetch-events"
         private const val LOG_COLLATION_WINDOW_MS = 100_000L
+        private const val MAX_RENDERED_CHART_POINTS = 120
         private val DASHBOARD_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")
         private val DASHBOARD_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss")
         private val DASHBOARD_TIME_LABEL_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)
