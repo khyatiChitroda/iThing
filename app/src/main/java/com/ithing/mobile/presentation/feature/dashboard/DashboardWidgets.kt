@@ -1,64 +1,5468 @@
-package com.ithing.mobile.domain.model
+package com.ithing.mobile.presentation.feature.dashboard
 
-data class DashboardWidgetSource(
-    val fields: List<String> = emptyList(),
-    val icons: List<String> = emptyList(),
-    val units: List<String> = emptyList(),
-    val minValues: List<Double?> = emptyList(),
-    val maxValues: List<Double?> = emptyList(),
-    val minValue: Double? = null,
-    val maxValue: Double? = null,
-    val bgColor: String? = null,
-    val valueInputMode: String? = null,
-    val bitSelection: Int? = null,
-    val colorValues: DashboardWidgetColorValues? = null,
-    val heatMapLegend: List<DashboardHeatMapLegendItem> = emptyList()
+import android.graphics.Paint
+import android.graphics.Typeface
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items as lazyItems
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Timeline
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Clock3
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.Thermometer
+import com.ithing.mobile.domain.model.DashboardWidget
+import com.ithing.mobile.domain.model.DashboardWidgetColorValues
+import com.ithing.mobile.domain.model.DashboardHeatMapLegendItem
+import com.ithing.mobile.domain.model.DashboardWidgetPoint
+import com.ithing.mobile.domain.model.DashboardWidgetSeries
+import com.ithing.mobile.presentation.theme.LightGrayBg
+import com.ithing.mobile.presentation.theme.dashboardLayoutForWidth
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+private val DashboardWidgetCardShape = RoundedCornerShape(16.dp)
+private fun Modifier.dashboardWidgetCardShadow(): Modifier =
+    this.shadow(
+        elevation = 12.dp,
+        shape = DashboardWidgetCardShape,
+        clip = false,
+        ambientColor = Color(0x1A000000),
+        spotColor = Color(0x26000000)
+    )
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ResponsiveLegendFlow(
+    items: List<T>,
+    content: @Composable (T) -> Unit
 ) {
-    val field: String
-        get() = fields.firstOrNull().orEmpty()
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items.forEach { item ->
+            Box(
+                modifier = Modifier
+                    .widthIn(min = 140.dp, max = 280.dp)
+                    .padding(vertical = 2.dp)
+            ) {
+                content(item)
+            }
+        }
+    }
 }
 
-data class DashboardHeatMapLegendItem(
-    val label: String,
-    val value: Double,
-    val color: Long
-)
+private enum class SeriesLegendMarker { Bar, Dot, LargeBar, OutlineBar, OutlineBox }
 
-data class DashboardWidgetColorValues(
-    val green: Double? = null,
-    val red: Double? = null,
-    val yellow: Double? = null
-)
+@Composable
+private fun SeriesLegendFlow(
+    series: List<DashboardWidgetSeries>,
+    marker: SeriesLegendMarker
+) {
+    ResponsiveLegendFlow(items = series) { item ->
+        val color = ChartSeriesColors[series.indexOf(item).mod(ChartSeriesColors.size)]
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val markerModifier = when (marker) {
+                SeriesLegendMarker.Bar -> Modifier
+                    .size(width = 40.dp, height = 13.dp)
+                    .background(color, RoundedCornerShape(1.dp))
+                SeriesLegendMarker.Dot -> Modifier.size(12.dp).background(color, CircleShape)
+                SeriesLegendMarker.LargeBar -> Modifier
+                    .size(width = 48.dp, height = 16.dp)
+                    .background(color, RoundedCornerShape(1.dp))
+                SeriesLegendMarker.OutlineBar -> Modifier
+                    .size(width = 40.dp, height = 13.dp)
+                    .border(2.dp, color, RoundedCornerShape(1.dp))
+                SeriesLegendMarker.OutlineBox -> Modifier
+                    .size(width = 48.dp, height = 16.dp)
+                    .border(2.dp, color, RoundedCornerShape(2.dp))
+            }
+            Box(modifier = markerModifier)
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF66768C),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
 
-data class DashboardWidgetPoint(
-    val timestamp: Long,
-    val label: String,
-    val value: Double
-)
-
-data class DashboardWidgetSeries(
-    val label: String,
-    val points: List<DashboardWidgetPoint>
-)
-
-data class DashboardTelemetryResult(
-    val widgets: List<DashboardWidget>,
-    val lastUpdatedAt: Long? = null
-)
-
-data class DashboardWidget(
-    val id: String,
-    val title: String,
+private data class WidgetRendererKey(
     val type: String,
-    val subType: String? = null,
-    val icon: String? = null,
-    val deviceId: String?,
-    val dashboardName: String?,
-    val unit: String? = null,
-    val index: Int? = null,
-    val sources: List<DashboardWidgetSource> = emptyList(),
-    val valuesByField: Map<String, Double> = emptyMap(),
-    val currentValue: Double? = null,
-    val currentValueLabel: String? = null,
-    val chartSeries: List<DashboardWidgetSeries> = emptyList()
+    val subType: String
 )
+
+private enum class WidgetRenderKind {
+    Metric,
+    Chart
+}
+
+private sealed interface DashboardRenderBlock {
+    data class Metric(val widgets: List<DashboardWidget>) : DashboardRenderBlock
+    data class Chart(val widget: DashboardWidget) : DashboardRenderBlock
+}
+
+private fun rendererKey(widget: DashboardWidget) = WidgetRendererKey(
+    type = widget.type.orEmpty().trim().lowercase(),
+    subType = widget.subType.orEmpty().trim().lowercase()
+)
+
+private fun resolveRenderKind(key: WidgetRendererKey): WidgetRenderKind {
+    return if (key.type == "charts") WidgetRenderKind.Chart else WidgetRenderKind.Metric
+}
+
+private data class WidgetSectionPalette(
+    val block: Color,
+    val accent: Color
+)
+
+private val WidgetSectionPalettes = listOf(
+    WidgetSectionPalette(block = Color(0xFFE7ABAB), accent = Color(0xFFE6B6BC)),
+    WidgetSectionPalette(block = Color(0xFFA9CBC9), accent = Color(0xFFB6D4D2)),
+    WidgetSectionPalette(block = Color(0xFFDDB77F), accent = Color(0xFFE1BF8E)),
+    WidgetSectionPalette(block = Color(0xFF98BED6), accent = Color(0xFFA7C9DE))
+)
+
+private val ChartSeriesColors = listOf(
+    Color(0xFF1F3C69),
+    Color(0xFF5C97C8),
+    Color(0xFF80C759),
+    Color(0xFFFF7E2F),
+    Color(0xFF9DB2BF)
+)
+
+private const val DEFAULT_CHART_AXIS_RANGE = 2.0
+
+private fun DrawScope.drawArcCenteredValue(
+    text: String,
+    centerY: Float,
+    radius: Float,
+    color: Color,
+    textSize: Float
+) {
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color.toArgb()
+        this.textSize = textSize
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    val visualCenterY = centerY - (radius * 0.42f)
+    val baseline = visualCenterY - ((paint.ascent() + paint.descent()) / 2f)
+    drawContext.canvas.nativeCanvas.drawText(text, size.width / 2f, baseline, paint)
+}
+
+private val PolarAreaColors = listOf(
+    Color(0xFFB8C0D6),
+    Color(0xFF8D9BC6),
+    Color(0xFF6E7DA6),
+    Color(0xFF9EDBD7),
+    Color(0xFF9DB2BF)
+)
+
+private val ComparisonPalette = listOf(
+    Color(0xFFE7B0B0),
+    Color(0xFFA8C8C4),
+    Color(0xFFD5B183),
+    Color(0xFF8BB3C6),
+    Color(0xFFE7C45A),
+    Color(0xFFD48E7A)
+)
+
+private data class CombinationBarItem(
+    val label: String,
+    val value: Double?,
+    val iconName: String?,
+    val unit: String,
+    val min: Double,
+    val max: Double
+) {
+    val percent: Double
+        get() {
+            val numericValue = value ?: return 0.0
+            val range = (max - min).takeIf { it != 0.0 } ?: 1.0
+            return ((numericValue - min) / range).coerceIn(0.0, 1.0)
+        }
+}
+
+private val CombinationBarSegmentColors = listOf(
+    Color(0xFF22C55E),
+    Color(0xFF65D46E),
+    Color(0xFFFACC15),
+    Color(0xFFF59E0B),
+    Color(0xFFEF4444)
+)
+
+private fun DashboardWidget.combinationBarItems(limit: Int = 12): List<CombinationBarItem> {
+    return sources.flatMap { source ->
+        source.fields.mapIndexed { idx, label ->
+            CombinationBarItem(
+                label = label,
+                value = valuesByField[label],
+                iconName = source.icons.getOrNull(idx),
+                unit = source.units.getOrNull(idx)?.takeIf { it.isNotBlank() } ?: unit.orEmpty(),
+                min = source.minValues.getOrNull(idx) ?: source.minValue ?: 0.0,
+                max = source.maxValues.getOrNull(idx) ?: source.maxValue ?: 100.0
+            )
+        }
+    }.take(limit)
+}
+
+fun LazyListScope.dashboardWidgetGridItems(
+    widgets: List<DashboardWidget>,
+    selectedGroup: String
+) {
+    val filteredWidgets = widgets
+        .filter { selectedGroup == "All" || it.dashboardName == selectedGroup }
+        .sortedBy { it.index ?: Int.MAX_VALUE }
+
+    val blocks = buildList {
+        val out = mutableListOf<DashboardRenderBlock>()
+        val metricBuffer = mutableListOf<DashboardWidget>()
+
+        fun flushMetrics() {
+            if (metricBuffer.isNotEmpty()) {
+                metricBuffer.chunked(4).forEach { chunk ->
+                    out += DashboardRenderBlock.Metric(chunk)
+                }
+                metricBuffer.clear()
+            }
+        }
+
+        filteredWidgets.forEach { widget ->
+            if (resolveRenderKind(rendererKey(widget)) == WidgetRenderKind.Chart) {
+                flushMetrics()
+                out += DashboardRenderBlock.Chart(widget)
+            } else {
+                metricBuffer += widget
+            }
+        }
+        flushMetrics()
+        addAll(out)
+    }
+
+    lazyItems(
+        items = blocks,
+        contentType = { block -> block::class }
+    ) { block ->
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp, bottom = 10.dp)
+        ) {
+            when (block) {
+                is DashboardRenderBlock.Metric -> DashboardMetricGrid(widgets = block.widgets)
+                is DashboardRenderBlock.Chart -> {
+                    val isWebStyleChart =
+                        block.widget.isDonutLikeChart() ||
+                            block.widget.isPieChart() ||
+                            block.widget.isPolarAreaChart() ||
+                            block.widget.isAreaChart() ||
+                            block.widget.isBarChart() ||
+                            block.widget.isScatterChart() ||
+                            block.widget.isStateChart() ||
+                            block.widget.isHeatMapChart()
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isWebStyleChart) Color.White else LightGrayBg
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(18.dp)
+                        ) {
+                            DashboardChartCard(widget = block.widget)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardMetricGrid(
+    widgets: List<DashboardWidget>
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val columnCount = dashboardLayoutForWidth(maxWidth.value.toInt()).metricColumns
+        val rows = remember(widgets, columnCount) {
+            val out = mutableListOf<DashboardMetricRow>()
+            val currentRow = mutableListOf<DashboardWidget>()
+
+            fun flushCurrentRow() {
+                if (currentRow.isNotEmpty()) {
+                    out += DashboardMetricRow(currentRow.toList(), isFullWidth = false)
+                    currentRow.clear()
+                }
+            }
+
+            widgets.forEach { widget ->
+                val type = widget.type.trim().lowercase()
+                val isFullWidth = type == "comparison" || type == "gauge"
+                if (isFullWidth) {
+                    flushCurrentRow()
+                    out += DashboardMetricRow(listOf(widget), isFullWidth = true)
+                } else {
+                    currentRow += widget
+                    if (currentRow.size == columnCount) flushCurrentRow()
+                }
+            }
+            flushCurrentRow()
+            out
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            rows.forEach { row ->
+                if (row.isFullWidth) {
+                    DashboardMetricTile(widget = row.widgets.first())
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        row.widgets.forEach { widget ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                DashboardMetricTile(widget = widget)
+                            }
+                        }
+                        repeat(columnCount - row.widgets.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardMetricTile(
+    widget: DashboardWidget
+) {
+    val key = rendererKey(widget)
+    val palette = WidgetSectionPalettes[(widget.index ?: 0).mod(WidgetSectionPalettes.size)]
+
+    if (widget.isCompositeStyleWidget()) {
+        DashboardCompositeCard(widget = widget)
+        return
+    }
+
+    when (key.type) {
+        "cards" -> DashboardCardTile(widget = widget)
+        "comparison" -> {
+            when (key.subType) {
+                "comparison" -> DashboardComparisonCard(widget = widget)
+                "with_4_cards" -> DashboardWith4Cards(widget = widget)
+                "table_format" -> DashboardTableFormat(widget = widget)
+                "combination_horizontal_bar" -> DashboardCombinationHorizontalBar(widget = widget)
+                "combination_vertical_bar" -> DashboardCombinationVerticalBar(widget = widget)
+                "dial_status" -> DashboardDialStatus(widget = widget)
+                else -> DashboardGenericMetricTile(widget = widget, palette = palette)
+            }
+        }
+
+        "gauge" -> DashboardGaugeTile(widget = widget)
+
+        else -> DashboardGenericMetricTile(widget = widget, palette = palette)
+    }
+}
+
+@Composable
+private fun DashboardGaugeTile(widget: DashboardWidget) {
+    val source = widget.sources.firstOrNull()
+    val field = source?.fields?.firstOrNull()
+    val value = field?.let { widget.valuesByField[it] } ?: widget.currentValue
+    val numericValue = value ?: 0.0
+    val minValue = source?.minValue ?: source?.minValues?.firstOrNull() ?: 0.0
+    val maxValue = source?.maxValue ?: source?.maxValues?.firstOrNull() ?: (minValue + 1.0)
+    val denom = (maxValue - minValue).takeIf { it != 0.0 } ?: 1.0
+    val percent = ((numericValue - minValue) / denom).coerceIn(0.0, 1.0).toFloat()
+
+    val subType = widget.subType.orEmpty().trim().lowercase()
+    if (subType == "radial") {
+        DashboardRadialGaugeTile(
+            title = widget.title,
+            valueText = value.formatDashboardValue(widget.unit),
+            percent = percent
+        )
+        return
+    }
+    if (widget.isSemiCircleGauge(subType)) {
+        DashboardSemiCircleGaugeTile(
+            title = widget.title,
+            valueText = value.formatDashboardValue(widget.unit),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
+    if (widget.isPrimaryColorGauge(subType)) {
+        DashboardPrimaryColorGaugeTile(
+            title = widget.title,
+            value = value,
+            unit = widget.unit.orEmpty(),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
+    if (widget.isHorizontalBarGauge(subType)) {
+        DashboardHorizontalBarGaugeTile(
+            title = widget.title,
+            valueText = value.formatDashboardValue(widget.unit),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
+    if (widget.isVerticalBarGauge(subType)) {
+        DashboardVerticalBarGaugeTile(
+            title = widget.title,
+            valueText = value.formatDashboardValue(widget.unit),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
+    if (subType == "spedo_meter_with_arch") {
+        DashboardArchSpeedometerTile(
+            title = widget.title,
+            valueText = value.formatDashboardValue(widget.unit),
+            percent = percent,
+            minText = minValue.formatForCard(decimals = 0),
+            maxText = maxValue.formatForCard(decimals = 0)
+        )
+        return
+    }
+
+    val (colors, arcsLength) = when (subType) {
+        "spedo_meter_with_arch_color" -> listOf(
+            Color(0xFF1BAAE3),
+            Color(0xFFFBE042),
+            Color(0xFFE7512C)
+        ) to listOf(0.3f, 0.5f, 0.2f)
+
+        "spedo_meter_with_arch" -> listOf(
+            Color(0xFF72AAC5),
+            Color(0xFF1E3A8A),
+            Color(0xFF172554)
+        ) to listOf(0.3f, 0.5f, 0.2f)
+
+        "speedometer" -> listOf(
+            Color(0xFF72AAC5),
+            Color(0xFF1E3A8A)
+        ) to listOf(0.5f, 0.5f)
+
+        else -> listOf(
+            Color(0xFF72AAC5),
+            Color(0xFF1E3A8A)
+        ) to listOf(0.5f, 0.5f)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = widget.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (subType == "speedometer") {
+                TickSpeedometerGauge(
+                    percent = percent,
+                    valueText = value.formatDashboardValue(widget.unit)
+                )
+            } else {
+                SegmentedSpeedometerGauge(
+                    percent = percent,
+                    colors = colors,
+                    arcsLength = arcsLength,
+                    valueText = value.formatDashboardValue(widget.unit),
+                    arcPaddingFraction = if (subType == "spedo_meter_with_arch_color") 0.045f else 0.02f
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 42.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = minValue.formatForCard(decimals = 0),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF223461),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = maxValue.formatForCard(decimals = 0),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF223461),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardSemiCircleGaugeTile(
+    title: String,
+    valueText: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            SemiCircleGaugeArc(
+                percent = percent,
+                valueText = valueText,
+                minText = minText,
+                maxText = maxText
+            )
+        }
+    }
+}
+
+@Composable
+private fun SemiCircleGaugeArc(
+    percent: Float,
+    valueText: String,
+    minText: String,
+    maxText: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(2.2f)
+            .heightIn(min = 120.dp, max = 180.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = 28f
+            val radius = (size.minDimension / 2f) - stroke - 4f
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.84f)
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val topLeft = androidx.compose.ui.geometry.Offset(
+                center.x - radius,
+                center.y - radius
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f)
+
+            drawArc(
+                color = Color(0xFFE5E5E5),
+                startAngle = startAngle,
+                sweepAngle = sweepTotal,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Butt)
+            )
+
+            drawArc(
+                color = Color(0xFF1E3A8A),
+                startAngle = startAngle,
+                sweepAngle = sweepTotal * percent.coerceIn(0f, 1f),
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Butt)
+            )
+            drawArcCenteredValue(valueText, center.y, radius, Color(0xFF374151), 20.dp.toPx())
+        }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 48.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = minText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = maxText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+private fun DashboardWidget.isSemiCircleGauge(subType: String): Boolean {
+    val normalizedTitle = title.trim().lowercase()
+    return subType in setOf(
+        "semi_circle",
+        "semi_circle_gauge",
+        "semicircle",
+        "semicircle_gauge",
+        "semi-circle",
+        "semi-circle-gauge"
+    ) || "semi circle" in normalizedTitle
+}
+
+@Composable
+private fun DashboardPrimaryColorGaugeTile(
+    title: String,
+    value: Double?,
+    unit: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            PrimaryColorDialGauge(
+                percent = percent,
+                valueText = value?.formatForCard(decimals = 0) ?: "--",
+                unit = unit,
+                minText = minText,
+                maxText = maxText
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrimaryColorDialGauge(
+    percent: Float,
+    valueText: String,
+    unit: String,
+    minText: String,
+    maxText: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .heightIn(min = 180.dp, max = 260.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(
+            modifier = Modifier
+                .size(218.dp)
+                .align(Alignment.Center)
+        ) {
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+            val radius = size.minDimension / 2f - 6f
+            val bandRadius = radius * 0.70f
+            val bandStroke = radius * 0.22f
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val dialDark = Color(0xFF17172B)
+            val ringDark = Color(0xFF0D1832)
+            val ringAccent = Color(0xFF1A2746)
+            val bandGray = Color(0xFFAEB1B8)
+            val bandYellow = Color(0xFFE3D171)
+            val needleOrange = Color(0xFFFF9800)
+
+            drawCircle(color = ringDark, radius = radius, center = center)
+            drawCircle(color = ringAccent, radius = radius * 0.94f, center = center)
+            drawCircle(color = dialDark, radius = radius * 0.88f, center = center)
+
+            val arcTopLeft = androidx.compose.ui.geometry.Offset(
+                center.x - bandRadius,
+                center.y - bandRadius
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(bandRadius * 2f, bandRadius * 2f)
+            drawArc(
+                color = bandGray,
+                startAngle = startAngle,
+                sweepAngle = sweepTotal * 0.45f,
+                useCenter = false,
+                topLeft = arcTopLeft,
+                size = arcSize,
+                style = Stroke(width = bandStroke, cap = StrokeCap.Butt)
+            )
+            drawArc(
+                color = bandYellow,
+                startAngle = startAngle + sweepTotal * 0.45f,
+                sweepAngle = sweepTotal * 0.55f,
+                useCenter = false,
+                topLeft = arcTopLeft,
+                size = arcSize,
+                style = Stroke(width = bandStroke, cap = StrokeCap.Butt)
+            )
+
+            val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.rgb(214, 218, 226)
+                textAlign = Paint.Align.CENTER
+                textSize = 11f * density
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            listOf(20 to 180f, 40 to 225f, 60 to 270f, 80 to 360f).forEach { (label, angleDeg) ->
+                val angle = Math.toRadians(angleDeg.toDouble())
+                val outer = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(angle) * (bandRadius + bandStroke * 0.46f)).toFloat(),
+                    y = center.y + (sin(angle) * (bandRadius + bandStroke * 0.46f)).toFloat()
+                )
+                val inner = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(angle) * (bandRadius - bandStroke * 0.46f)).toFloat(),
+                    y = center.y + (sin(angle) * (bandRadius - bandStroke * 0.46f)).toFloat()
+                )
+                drawLine(
+                    color = Color(0xFFE6E8EE),
+                    start = inner,
+                    end = outer,
+                    strokeWidth = 2f,
+                    cap = StrokeCap.Round
+                )
+
+                val labelPoint = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(angle) * (bandRadius - bandStroke * 0.92f)).toFloat(),
+                    y = center.y + (sin(angle) * (bandRadius - bandStroke * 0.92f)).toFloat()
+                )
+                drawContext.canvas.nativeCanvas.drawText(
+                    label.toString(),
+                    labelPoint.x,
+                    labelPoint.y + tickPaint.textSize / 3f,
+                    tickPaint
+                )
+            }
+
+            val needleAngle = Math.toRadians(
+                (startAngle + percent.coerceIn(0f, 1f) * sweepTotal).toDouble()
+            )
+            val needleLen = bandRadius + bandStroke * 0.16f
+            val needleTip = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(needleAngle) * needleLen).toFloat(),
+                y = center.y + (sin(needleAngle) * needleLen).toFloat()
+            )
+            val baseAngle = needleAngle + Math.PI / 2.0
+            val baseHalfWidth = 10f
+            val baseStart = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y + (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val baseEnd = androidx.compose.ui.geometry.Offset(
+                x = center.x - (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y - (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val needlePath = Path().apply {
+                moveTo(needleTip.x, needleTip.y)
+                lineTo(baseStart.x, baseStart.y)
+                lineTo(baseEnd.x, baseEnd.y)
+                close()
+            }
+            drawPath(path = needlePath, color = needleOrange)
+            drawCircle(color = Color(0xFF31415F), radius = 13f, center = center)
+            drawCircle(color = needleOrange, radius = 8f, center = center)
+        }
+
+        Text(
+            text = unit.toPrimaryGaugeUnitLabel(),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 28.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFC6CBD6),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 60.dp)
+                .background(Color(0xFF2A241B), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFFD59B1F), RoundedCornerShape(4.dp))
+                .padding(horizontal = 10.dp, vertical = 1.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = valueText,
+                style = MaterialTheme.typography.titleLarge,
+                color = Color(0xFFFFC928),
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 42.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = minText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = maxText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+private fun DashboardWidget.isPrimaryColorGauge(subType: String): Boolean {
+    val normalizedTitle = title.trim().lowercase()
+    return subType in setOf(
+        "primary_color",
+        "primary_color_gauge",
+        "primary-color",
+        "primary-color-gauge"
+    ) || "primary color" in normalizedTitle
+}
+
+private fun String.toPrimaryGaugeUnitLabel(): String {
+    val compact = trim()
+    return when {
+        compact.isBlank() -> ""
+        compact.startsWith("°") && compact.length > 1 -> compact.first() + " " + compact.drop(1)
+            .trim()
+
+        else -> compact
+    }
+}
+
+@Composable
+private fun DashboardHorizontalBarGaugeTile(
+    title: String,
+    valueText: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(126.dp)
+            ) {
+                HorizontalSegmentedBar(
+                    percent = percent,
+                    segmentColors = CombinationBarSegmentColors,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(78.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(y = 16.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = minText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF223461),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = maxText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF223461),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Text(
+                    text = valueText,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(top = 4.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF374151),
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardVerticalBarGaugeTile(
+    title: String,
+    valueText: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(218.dp)
+            ) {
+                SingleVerticalSegmentedBar(
+                    percent = percent,
+                    segmentColors = CombinationBarSegmentColors,
+                    minText = minText,
+                    maxText = maxText,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 20.dp)
+                )
+
+                Text(
+                    text = valueText,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 26.dp, bottom = 8.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color(0xFF223461),
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SingleVerticalSegmentedBar(
+    percent: Float,
+    segmentColors: List<Color>,
+    minText: String,
+    maxText: String,
+    modifier: Modifier = Modifier
+) {
+    val barHeight = 190.dp
+    val reversedPercent = 1f - percent.coerceIn(0f, 1f)
+
+    Box(
+        modifier = modifier
+            .width(132.dp)
+            .height(210.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(48.dp)
+                .height(barHeight)
+                .clip(RoundedCornerShape(999.dp))
+                .border(8.dp, Color(0xFFCBD5E1), RoundedCornerShape(999.dp))
+                .background(Color(0xFFE2E8F0), RoundedCornerShape(999.dp))
+        ) {
+            segmentColors.asReversed().forEach { color ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(color)
+                )
+            }
+        }
+
+        Canvas(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(72.dp)
+                .height(barHeight)
+        ) {
+            val pointerHalfHeight = 12.dp.toPx()
+            val y = (barHeight.toPx() * reversedPercent)
+                .coerceIn(pointerHalfHeight, barHeight.toPx() - pointerHalfHeight)
+            val x = 54f
+            val path = Path().apply {
+                moveTo(x, y)
+                lineTo(x + 16f, y - 12f)
+                lineTo(x + 16f, y + 12f)
+                close()
+            }
+            drawPath(path = path, color = Color(0xFF4B5563))
+        }
+
+        Text(
+            text = maxText,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 78.dp, top = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF223461),
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = minText,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 78.dp, bottom = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF223461),
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+private fun DashboardWidget.isHorizontalBarGauge(subType: String): Boolean {
+    val normalizedTitle = title.trim().lowercase()
+    return subType in setOf(
+        "horizontal_bar",
+        "horizontal-bar",
+        "horizontalbar"
+    ) || "horizontal bar" in normalizedTitle
+}
+
+private fun DashboardWidget.isVerticalBarGauge(subType: String): Boolean {
+    val normalizedTitle = title.trim().lowercase()
+    return subType in setOf(
+        "vertical_bar",
+        "vertical-bar",
+        "verticalbar"
+    ) || "vertical bar" in normalizedTitle
+}
+
+@Composable
+private fun DashboardArchSpeedometerTile(
+    title: String,
+    valueText: String,
+    percent: Float,
+    minText: String,
+    maxText: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            ArchSpeedometerGauge(
+                percent = percent,
+                valueText = valueText,
+                minText = minText,
+                maxText = maxText
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArchSpeedometerGauge(
+    percent: Float,
+    valueText: String,
+    minText: String,
+    maxText: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(2.2f)
+            .heightIn(min = 112.dp, max = 170.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = 20f
+            val radius = (size.minDimension / 2f) - stroke - 4f
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.84f)
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val arcGap = 8f
+            val colors = listOf(
+                Color(0xFF72AAC5),
+                Color(0xFF1E3A8A),
+                Color(0xFF172554)
+            )
+            val arcLengths = listOf(0.30f, 0.46f, 0.24f)
+
+            var angleCursor = startAngle
+            arcLengths.forEachIndexed { idx, length ->
+                val rawSweep = sweepTotal * length
+                drawArc(
+                    color = colors[idx],
+                    startAngle = angleCursor,
+                    sweepAngle = (rawSweep - arcGap).coerceAtLeast(2f),
+                    useCenter = false,
+                    topLeft = androidx.compose.ui.geometry.Offset(
+                        center.x - radius,
+                        center.y - radius
+                    ),
+                    size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+                angleCursor += rawSweep
+            }
+
+            val angle =
+                Math.toRadians((startAngle + (percent.coerceIn(0f, 1f) * sweepTotal)).toDouble())
+            val needleLen = radius - 10f
+            val needleTip = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(angle) * needleLen).toFloat(),
+                y = center.y + (sin(angle) * needleLen).toFloat()
+            )
+            val baseAngle = angle + Math.PI / 2.0
+            val baseHalfWidth = 7f
+            val baseStart = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y + (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val baseEnd = androidx.compose.ui.geometry.Offset(
+                x = center.x - (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y - (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val needlePath = Path().apply {
+                moveTo(needleTip.x, needleTip.y)
+                lineTo(baseStart.x, baseStart.y)
+                lineTo(baseEnd.x, baseEnd.y)
+                close()
+            }
+            drawPath(path = needlePath, color = Color(0xFF0000AA))
+            drawCircle(color = Color(0xFF00AA00), radius = 10f, center = center)
+            drawArcCenteredValue(valueText, center.y, radius, Color(0xFF1E3A8A), 18.dp.toPx())
+        }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 54.dp, vertical = 0.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = minText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = maxText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardRadialGaugeTile(
+    title: String,
+    valueText: String,
+    percent: Float
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dashboardWidgetCardShadow(),
+        shape = DashboardWidgetCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            RadialGaugeRing(
+                percent = percent,
+                valueText = valueText
+            )
+        }
+    }
+}
+
+@Composable
+private fun RadialGaugeRing(
+    percent: Float,
+    valueText: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1.8f)
+            .heightIn(min = 126.dp, max = 190.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = size.minDimension * 0.12f
+            val radius = (size.minDimension / 2f) - stroke - 2f
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+            val diameter = radius * 2f
+
+            drawArc(
+                color = Color(0xFFF3F4F6),
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius),
+                size = androidx.compose.ui.geometry.Size(diameter, diameter),
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+
+            drawArc(
+                color = Color(0xFF1E3A8A),
+                startAngle = -90f,
+                sweepAngle = 360f * percent.coerceIn(0f, 1f),
+                useCenter = false,
+                topLeft = androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius),
+                size = androidx.compose.ui.geometry.Size(diameter, diameter),
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+        }
+
+        Text(
+            text = valueText,
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF374151),
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun SegmentedSpeedometerGauge(
+    percent: Float,
+    colors: List<Color>,
+    arcsLength: List<Float>,
+    valueText: String,
+    arcPaddingFraction: Float
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(2.2f)
+            .heightIn(min = 112.dp, max = 170.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = 20f
+            val radius = (size.minDimension / 2f) - stroke - 2f
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.86f)
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val gapSweep = (sweepTotal * arcPaddingFraction).coerceAtLeast(0f)
+
+            var angleCursor = startAngle
+            val segmentFractions = arcsLength
+                .take(colors.size)
+                .let { list ->
+                    val sum = list.sum().takeIf { it > 0f } ?: 1f
+                    list.map { it / sum }
+                }
+
+            segmentFractions.forEachIndexed { idx, frac ->
+                val color = colors.getOrNull(idx) ?: Color(0xFF1E3A8A)
+                val segSweepRaw = sweepTotal * frac
+                val segSweep = (segSweepRaw - gapSweep).coerceAtLeast(2f)
+
+                drawArc(
+                    color = color,
+                    startAngle = angleCursor,
+                    sweepAngle = segSweep,
+                    useCenter = false,
+                    topLeft = androidx.compose.ui.geometry.Offset(
+                        center.x - radius,
+                        center.y - radius
+                    ),
+                    size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+
+                angleCursor += segSweepRaw
+            }
+
+            val needleAngle = Math.toRadians(
+                (startAngle + (percent.coerceIn(0f, 1f) * sweepTotal)).toDouble()
+            )
+            val needleLen = radius - 12f
+            val needleTip = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(needleAngle) * needleLen).toFloat(),
+                y = center.y + (sin(needleAngle) * needleLen).toFloat()
+            )
+            val baseAngle = needleAngle + Math.PI / 2.0
+            val baseHalfWidth = 7f
+            val baseStart = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y + (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val baseEnd = androidx.compose.ui.geometry.Offset(
+                x = center.x - (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y - (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val needlePath = Path().apply {
+                moveTo(needleTip.x, needleTip.y)
+                lineTo(baseStart.x, baseStart.y)
+                lineTo(baseEnd.x, baseEnd.y)
+                close()
+            }
+            drawPath(path = needlePath, color = Color(0xFF0000AA))
+            drawCircle(color = Color(0xFF16A34A), radius = 10f, center = center)
+            drawArcCenteredValue(valueText, center.y, radius, Color(0xFF223461), 18.dp.toPx())
+        }
+    }
+}
+
+@Composable
+private fun TickSpeedometerGauge(
+    percent: Float,
+    valueText: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(2.2f)
+            .heightIn(min = 112.dp, max = 170.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val tickCount = 25
+            val tickStroke = 10f
+            val radius = (size.minDimension / 2f) - tickStroke - 2f
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.86f)
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val stepSweep = sweepTotal / tickCount
+            val tickLength = radius * 0.15f
+            val lightBlue = Color(0xFF72AAC5)
+            val darkBlue = Color(0xFF1E3A8A)
+
+            repeat(tickCount) { index ->
+                val fraction = index.toFloat() / (tickCount - 1).coerceAtLeast(1)
+                val tickAngle = Math.toRadians((startAngle + index * stepSweep).toDouble())
+                val outer = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(tickAngle) * radius).toFloat(),
+                    y = center.y + (sin(tickAngle) * radius).toFloat()
+                )
+                val inner = androidx.compose.ui.geometry.Offset(
+                    x = center.x + (cos(tickAngle) * (radius - tickLength)).toFloat(),
+                    y = center.y + (sin(tickAngle) * (radius - tickLength)).toFloat()
+                )
+                drawLine(
+                    color = lerp(lightBlue, darkBlue, fraction),
+                    start = inner,
+                    end = outer,
+                    strokeWidth = tickStroke,
+                    cap = StrokeCap.Round
+                )
+            }
+
+            val needleAngle = Math.toRadians(
+                (startAngle + (percent.coerceIn(0f, 1f) * sweepTotal)).toDouble()
+            )
+            val needleLen = radius - 12f
+            val needleTip = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(needleAngle) * needleLen).toFloat(),
+                y = center.y + (sin(needleAngle) * needleLen).toFloat()
+            )
+            val baseAngle = needleAngle + Math.PI / 2.0
+            val baseHalfWidth = 7f
+            val baseStart = androidx.compose.ui.geometry.Offset(
+                x = center.x + (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y + (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val baseEnd = androidx.compose.ui.geometry.Offset(
+                x = center.x - (cos(baseAngle) * baseHalfWidth).toFloat(),
+                y = center.y - (sin(baseAngle) * baseHalfWidth).toFloat()
+            )
+            val needlePath = Path().apply {
+                moveTo(needleTip.x, needleTip.y)
+                lineTo(baseStart.x, baseStart.y)
+                lineTo(baseEnd.x, baseEnd.y)
+                close()
+            }
+            drawPath(path = needlePath, color = Color(0xFF0000AA))
+            drawCircle(color = Color(0xFF16A34A), radius = 10f, center = center)
+            drawArcCenteredValue(valueText, center.y, radius, Color(0xFF223461), 18.dp.toPx())
+        }
+    }
+}
+
+@Composable
+private fun DashboardComparisonCard(widget: DashboardWidget) {
+    val source = widget.sources.firstOrNull()
+    val fields = source?.fields.orEmpty()
+    val icons = source?.icons.orEmpty()
+    val units = source?.units.orEmpty()
+    val labelsToRender = remember(fields) { fields.take(6) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = widget.title,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            val rows = remember(labelsToRender) { labelsToRender.chunked(2) }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                rows.forEach { rowLabels ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        rowLabels.forEach { label ->
+                            val idx = labelsToRender.indexOf(label)
+                            Box(modifier = Modifier.weight(1f)) {
+                                ComparisonChildTile(
+                                    label = label,
+                                    value = widget.valuesByField[label],
+                                    unit = units.getOrNull(idx)?.takeIf { it.isNotBlank() }
+                                        ?: widget.unit.orEmpty(),
+                                    iconName = icons.getOrNull(idx),
+                                    accent = ComparisonPalette[idx.mod(ComparisonPalette.size)]
+                                )
+                            }
+                        }
+                        if (rowLabels.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class CompositeCardItem(
+    val label: String,
+    val displayValue: String
+)
+
+private fun DashboardWidget.isCompositeStyleWidget(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase()
+    if (typeKey == "composite") return true
+    if (typeKey == "comparison" && subTypeKey == "composite") return true
+    if (subTypeKey.startsWith("composite_")) return true
+    if (typeKey == "gauge" || typeKey == "charts") return false
+
+    val source = sources.firstOrNull()
+    val fields = source?.fields.orEmpty()
+    if (fields.size < 2) return false
+
+    val titleKey = title.lowercase()
+    val looksCompositeTitle =
+        "cycle on" in titleKey &&
+                ("date" in titleKey || "time" in titleKey || "duration" in titleKey)
+    val looksCompositeFields = fields.any { field ->
+        val fieldKey = field.lowercase()
+        "cycle on" in fieldKey &&
+                ("date" in fieldKey || "time" in fieldKey || "duration" in fieldKey)
+    }
+
+    return (typeKey == "comparison" || typeKey == "cards" || typeKey.isBlank()) &&
+            (looksCompositeTitle || looksCompositeFields)
+}
+
+@Composable
+private fun DashboardCompositeCard(widget: DashboardWidget) {
+    val fields = widget.sources.flatMap { it.fields }.distinct()
+    val displayValue = fields
+        .map { field -> widget.valuesByField[field].formatWebCompositeValue() }
+        .joinToString(separator = "\n-\n")
+        .ifBlank { "--" }
+
+    CompositeChildCard(
+        label = widget.title,
+        displayValue = displayValue
+    )
+}
+
+@Composable
+private fun CompositeChildCard(
+    label: String,
+    displayValue: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 168.dp)
+            .dashboardWidgetCardShadow(),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF243B6B)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 22.dp, vertical = 28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = displayValue,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+private fun buildCompositeCardItems(
+    widget: DashboardWidget,
+    source: com.ithing.mobile.domain.model.DashboardWidgetSource?
+): List<CompositeCardItem> {
+    val fields = source?.fields.orEmpty()
+    if (fields.isEmpty()) return emptyList()
+
+    val units = source?.units.orEmpty()
+    val items = mutableListOf<CompositeCardItem>()
+    var index = 0
+
+    while (index < fields.size) {
+        val label = fields[index]
+        val groupSize = compositeFieldGroupSize(label, remaining = fields.size - index)
+        val fieldGroup = fields.subList(index, index + groupSize)
+        val unit = units.getOrNull(index)?.takeIf { it.isNotBlank() } ?: widget.unit.orEmpty()
+
+        items += CompositeCardItem(
+            label = label,
+            displayValue = fieldGroup.toCompositeValueText(
+                widget = widget,
+                label = label,
+                unit = unit
+            )
+        )
+        index += groupSize
+    }
+
+    return items
+}
+
+private fun compositeFieldGroupSize(label: String, remaining: Int): Int {
+    val normalized = label.lowercase()
+    return when {
+        remaining >= 3 && "date" in normalized -> 3
+        remaining >= 2 && (
+                "time" in normalized ||
+                        "duration" in normalized ||
+                        "hour" in normalized ||
+                        "min" in normalized
+                ) -> 2
+
+        else -> 1
+    }
+}
+
+private fun List<String>.toCompositeValueText(
+    widget: DashboardWidget,
+    label: String,
+    unit: String
+): String {
+    val separator = if ("date" in label.lowercase()) " / " else " - "
+    val parts = mapNotNull { field ->
+        widget.valuesByField[field]?.formatCompositePart()
+    }
+
+    if (parts.isEmpty()) return "--"
+    val joinedValue = parts.joinToString(separator = separator)
+    return if (parts.size == 1) {
+        widget.valuesByField[this.first()].formatDashboardValue(unit)
+    } else {
+        joinedValue
+    }
+}
+
+@Composable
+private fun ComparisonChildTile(
+    label: String,
+    value: Double?,
+    unit: String,
+    iconName: String?,
+    accent: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 108.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(Color.White, RoundedCornerShape(12.dp))
+    ) {
+        Box(
+            modifier = Modifier
+                .background(accent, RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+                .size(width = 66.dp, height = 108.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = comparisonIcon(iconName),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF556782),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = value.formatDashboardValue(),
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color(0xFF0F172A),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Text(
+                text = unit,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF66768C),
+                textAlign = TextAlign.End,
+                maxLines = 1
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .background(accent, RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
+                .size(width = 6.dp, height = 108.dp)
+        )
+    }
+}
+
+@Composable
+private fun DashboardWith4Cards(widget: DashboardWidget) {
+    val source = widget.sources.firstOrNull()
+    val fields = source?.fields.orEmpty()
+    val icons = source?.icons.orEmpty()
+    val units = source?.units.orEmpty()
+    val labelsToRender = remember(fields) { fields.take(6) }
+    val palette = listOf(
+        Color(0xFF98BAD5),
+        Color(0xFFC6D3E3),
+        Color(0xFF304674),
+        Color(0xFFB2CBDE)
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = widget.title,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                labelsToRender.forEachIndexed { idx, label ->
+                    With4RowTile(
+                        label = label,
+                        value = widget.valuesByField[label],
+                        unit = units.getOrNull(idx)?.takeIf { it.isNotBlank() }
+                            ?: widget.unit.orEmpty(),
+                        iconName = icons.getOrNull(idx),
+                        accent = palette[idx.mod(palette.size)]
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun With4RowTile(
+    label: String,
+    value: Double?,
+    unit: String,
+    iconName: String?,
+    accent: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 84.dp)
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                RoundedCornerShape(12.dp)
+            )
+            .background(Color.White, RoundedCornerShape(12.dp))
+    ) {
+        Box(
+            modifier = Modifier
+                .background(accent, RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+                .size(width = 76.dp, height = 84.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = comparisonIcon(iconName),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(30.dp)
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF556782),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = value.formatDashboardValue(unit),
+                style = MaterialTheme.typography.titleLarge,
+                color = Color(0xFF0F172A),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Box(
+            modifier = Modifier
+                .background(accent, RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
+                .size(width = 6.dp, height = 84.dp)
+        )
+    }
+}
+
+@Composable
+private fun DashboardTableFormat(widget: DashboardWidget) {
+    val source = widget.sources.firstOrNull()
+    val fields = source?.fields.orEmpty()
+    val icons = source?.icons.orEmpty()
+    val units = source?.units.orEmpty()
+    val labelsToRender = remember(fields) { fields.take(6) }
+    val palette = listOf(
+        Color(0xFFD1E4FF),
+        Color(0xFFFFE0C2),
+        Color(0xFFE5D9FF),
+        Color(0xFFC8F7E2),
+        Color(0xFFFFD6E8),
+        Color(0xFFFEF9C3)
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = widget.title,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Column {
+                labelsToRender.forEachIndexed { idx, label ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        palette[idx.mod(palette.size)],
+                                        RoundedCornerShape(20.dp)
+                                    )
+                                    .border(2.dp, Color(0xFFE2E8F0), RoundedCornerShape(20.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = comparisonIcon(icons.getOrNull(idx)),
+                                    contentDescription = null,
+                                    tint = Color(0xFF334155),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Text(
+                                text = label,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 10.dp, end = 10.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF0F172A),
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        val unit = units.getOrNull(idx)?.takeIf { it.isNotBlank() }
+                            ?: widget.unit.orEmpty()
+                        Text(
+                            text = widget.valuesByField[label].formatDashboardValue(unit),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color(0xFF0F172A),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardCombinationHorizontalBar(widget: DashboardWidget) {
+    val items = widget.combinationBarItems()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = widget.title,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items.chunked(2).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        rowItems.forEach { item ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                CombinationHorizontalBarTile(
+                                    item = item,
+                                    segmentColors = CombinationBarSegmentColors
+                                )
+                            }
+                        }
+                        if (rowItems.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CombinationHorizontalBarTile(
+    item: CombinationBarItem,
+    segmentColors: List<Color>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = dashboardLucideIcon(item.iconName, fallback = Lucide.Clock3),
+                        contentDescription = null,
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = item.label,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF0F172A),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text(
+                    text = item.value.formatDashboardValue(item.unit),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF0F172A),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+            ) {
+                HorizontalSegmentedBar(
+                    percent = item.percent.toFloat(),
+                    segmentColors = segmentColors,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(64.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Min: ${item.min.formatForCard(decimals = 0)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF64748B)
+                    )
+                    Text(
+                        text = "Max: ${item.max.formatForCard(decimals = 0)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF64748B)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HorizontalSegmentedBar(
+    percent: Float,
+    segmentColors: List<Color>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val pointerHalfWidth = 10.dp.toPx()
+        val pointerHeight = 12.dp.toPx()
+        val borderWidth = 8.dp.toPx()
+        val barTop = 16.dp.toPx()
+        val barHeight = 48.dp.toPx()
+        val radius = barHeight / 2f
+
+        val pointerX = (size.width * percent.coerceIn(0f, 1f))
+            .coerceIn(pointerHalfWidth, size.width - pointerHalfWidth)
+
+        val pointerPath = Path().apply {
+            moveTo(pointerX, 0f)
+            lineTo(pointerX - pointerHalfWidth, pointerHeight)
+            lineTo(pointerX + pointerHalfWidth, pointerHeight)
+            close()
+        }
+        drawPath(path = pointerPath, color = Color(0xFF4B5563))
+
+        drawRoundRect(
+            color = Color(0xFFD1D5DB),
+            topLeft = androidx.compose.ui.geometry.Offset(0f, barTop),
+            size = androidx.compose.ui.geometry.Size(size.width, barHeight),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius)
+        )
+        drawRoundRect(
+            color = Color(0xFFE2E8F0),
+            topLeft = androidx.compose.ui.geometry.Offset(borderWidth, barTop + borderWidth),
+            size = androidx.compose.ui.geometry.Size(
+                width = (size.width - borderWidth * 2).coerceAtLeast(0f),
+                height = (barHeight - borderWidth * 2).coerceAtLeast(0f)
+            ),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius)
+        )
+
+        val innerLeft = borderWidth
+        val innerTop = barTop + borderWidth
+        val innerWidth = (size.width - borderWidth * 2).coerceAtLeast(0f)
+        val innerHeight = (barHeight - borderWidth * 2).coerceAtLeast(0f)
+        if (innerWidth > 0f && innerHeight > 0f && segmentColors.isNotEmpty()) {
+            val clip = Path().apply {
+                addRoundRect(
+                    androidx.compose.ui.geometry.RoundRect(
+                        left = innerLeft,
+                        top = innerTop,
+                        right = innerLeft + innerWidth,
+                        bottom = innerTop + innerHeight,
+                        radiusX = innerHeight / 2f,
+                        radiusY = innerHeight / 2f
+                    )
+                )
+            }
+            clipPath(clip) {
+                val segmentWidth = innerWidth / segmentColors.size
+                segmentColors.forEachIndexed { idx, color ->
+                    drawRect(
+                        color = color,
+                        topLeft = androidx.compose.ui.geometry.Offset(
+                            x = innerLeft + segmentWidth * idx,
+                            y = innerTop
+                        ),
+                        size = androidx.compose.ui.geometry.Size(
+                            width = segmentWidth + 0.5f,
+                            height = innerHeight
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardCombinationVerticalBar(widget: DashboardWidget) {
+    val items = widget.combinationBarItems()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = widget.title,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items.forEach { item ->
+                    CombinationVerticalBarTile(
+                        item = item,
+                        segmentColors = CombinationBarSegmentColors,
+                        modifier = Modifier.width(126.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CombinationVerticalBarTile(
+    item: CombinationBarItem,
+    segmentColors: List<Color>,
+    modifier: Modifier = Modifier
+) {
+    val barHeight = 195.dp
+    val reversedPercent = 1.0 - item.percent
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF0F172A),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(barHeight)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .width(48.dp)
+                        .height(barHeight)
+                        .clip(RoundedCornerShape(999.dp))
+                        .border(8.dp, Color(0xFFCBD5E1), RoundedCornerShape(999.dp))
+                        .background(Color(0xFFE2E8F0), RoundedCornerShape(999.dp))
+                ) {
+                    segmentColors.asReversed().forEach { c ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .background(c)
+                        )
+                    }
+                }
+
+                Canvas(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .width(72.dp)
+                        .height(barHeight)
+                ) {
+                    val pointerHalfHeight = 12.dp.toPx()
+                    val y = (barHeight.toPx() * reversedPercent.toFloat())
+                        .coerceIn(pointerHalfHeight, barHeight.toPx() - pointerHalfHeight)
+                    val x = 54f
+                    val path = Path().apply {
+                        moveTo(x, y)
+                        lineTo(x + 16f, y - 12f)
+                        lineTo(x + 16f, y + 12f)
+                        close()
+                    }
+                    drawPath(path = path, color = Color(0xFF4B5563))
+                }
+
+                Text(
+                    text = item.max.formatForCard(decimals = 0),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 76.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFEF4444),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = item.min.formatForCard(decimals = 0),
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 76.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF16A34A),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Text(
+                text = item.value.formatDashboardValue(item.unit),
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF0F172A),
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardDialStatus(widget: DashboardWidget) {
+    val source = widget.sources.firstOrNull()
+    val fields = source?.fields.orEmpty()
+    val dialField = fields.getOrNull(0)
+    val valueField = fields.getOrNull(1)
+    val statusField = fields.getOrNull(2)
+
+    val dialValue = dialField?.let { widget.valuesByField[it] } ?: 0.0
+    val value = valueField?.let { widget.valuesByField[it] } ?: 0.0
+
+    val min = source?.minValues?.firstOrNull() ?: source?.minValue ?: 0.0
+    val max = source?.maxValues?.firstOrNull() ?: source?.maxValue ?: 100.0
+    val percent = ((dialValue - min) / ((max - min).takeIf { it != 0.0 } ?: 1.0)).coerceIn(0.0, 1.0)
+
+    val statusColor = run {
+        val numericStatus = statusField?.let { widget.valuesByField[it] }
+        val colors = source?.colorValues
+        when {
+            numericStatus != null && colors?.green != null && numericStatus == colors.green -> Color(
+                0xFF22C55E
+            )
+
+            numericStatus != null && colors?.red != null && numericStatus == colors.red -> Color(
+                0xFFEF4444
+            )
+
+            numericStatus != null && colors?.yellow != null && numericStatus == colors.yellow -> Color(
+                0xFFEAB308
+            )
+
+            else -> Color(0xFFFBBF24)
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = widget.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = Color(0xFFE2E8F0),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            DialGauge(
+                percent = percent.toFloat(),
+                valueText = dialValue.formatOneDecimal(),
+                label = dialField.orEmpty()
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(86.dp)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF0EA5E9), Color(0xFF22C55E))
+                                ),
+                                RoundedCornerShape(14.dp)
+                            )
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = valueField.orEmpty(),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Color(0xFFE2E8F0),
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = value.formatOneDecimal(),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color(0xFFFACC15),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(86.dp)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFFC9BEAB), Color(0xFFCFB4B4))
+                                ),
+                                RoundedCornerShape(14.dp)
+                            )
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Status",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .background(statusColor, RoundedCornerShape(26.dp))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialGauge(
+    percent: Float,
+    valueText: String,
+    label: String
+) {
+    val colors = listOf(
+        Color(0xFF22C55E),
+        Color(0xFF65D46E),
+        Color(0xFFFACC15),
+        Color(0xFFF59E0B),
+        Color(0xFFEF4444)
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(190.dp)
+        ) {
+            val levelCount = 20
+            val stroke = 18.dp.toPx()
+            val radius = kotlin.math.min(size.width * 0.34f, size.height * 0.68f)
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.90f)
+            val startAngle = 180f
+            val sweepTotal = 180f
+            val segmentSweep = sweepTotal / levelCount
+            // Round caps extend beyond each arc, so a larger angular gap is required
+            // to keep the individual web-style segments visibly separated.
+            val arcGap = 10f
+
+            repeat(levelCount) { idx ->
+                val colorPosition = idx.toFloat() / (levelCount - 1) * colors.lastIndex
+                val lowerIndex = colorPosition.toInt().coerceIn(0, colors.lastIndex)
+                val upperIndex = (lowerIndex + 1).coerceAtMost(colors.lastIndex)
+                val segmentColor = lerp(
+                    colors[lowerIndex],
+                    colors[upperIndex],
+                    colorPosition - lowerIndex
+                )
+                drawArc(
+                    color = segmentColor,
+                    startAngle = startAngle + idx * segmentSweep + (arcGap / 2f),
+                    sweepAngle = (segmentSweep - arcGap).coerceAtLeast(1f),
+                    useCenter = false,
+                    topLeft = androidx.compose.ui.geometry.Offset(
+                        center.x - radius,
+                        center.y - radius
+                    ),
+                    size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+            }
+
+            val angle =
+                Math.toRadians((startAngle + (percent.coerceIn(0f, 1f) * sweepTotal)).toDouble())
+            val needleLen = radius - 12f
+            val needleX = center.x + (cos(angle) * needleLen).toFloat()
+            val needleY = center.y + (sin(angle) * needleLen).toFloat()
+            drawLine(
+                color = Color.White,
+                start = center,
+                end = androidx.compose.ui.geometry.Offset(needleX, needleY),
+                strokeWidth = stroke * 0.32f,
+                cap = StrokeCap.Round
+            )
+            drawCircle(color = Color.White, radius = stroke * 0.42f, center = center)
+            drawArcCenteredValue(valueText, center.y, radius, Color(0xFFE2E8F0), 30.dp.toPx())
+        }
+        Text(
+            text = label,
+            modifier = Modifier
+                .align(Alignment.BottomCenter),
+            style = MaterialTheme.typography.titleSmall,
+            color = Color(0xFFE2E8F0),
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+private fun comparisonIcon(iconName: String?): ImageVector {
+    return dashboardLucideIcon(iconName, fallback = Lucide.Settings)
+}
+
+@Composable
+private fun DashboardGenericMetricTile(
+    widget: DashboardWidget,
+    palette: WidgetSectionPalette
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(116.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(
+                color = Color.White,
+                shape = RoundedCornerShape(12.dp)
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .background(
+                    color = palette.block,
+                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
+                )
+                .size(width = 100.dp, height = 116.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = widgetIcon(widget),
+                contentDescription = null,
+                modifier = Modifier.size(42.dp),
+                tint = Color.White
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = widget.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF556782),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = widgetValueLabel(widget),
+                style = MaterialTheme.typography.displaySmall,
+                color = Color(0xFF4E5F7A),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+
+            Text(
+                text = widget.unit.orEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF5C6E87),
+                textAlign = TextAlign.End
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(vertical = 1.dp, horizontal = 1.dp)
+                .background(
+                    color = palette.accent,
+                    shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
+                )
+                .size(width = 10.dp, height = 114.dp)
+        )
+    }
+}
+
+@Composable
+private fun DashboardCardTile(widget: DashboardWidget) {
+    when (val subType = widget.subType.orEmpty().trim().lowercase()) {
+        "value_card" -> DashboardValueCard(widget = widget)
+        "gradient_card" -> DashboardGradientCard(widget = widget)
+        "label_widget" -> DashboardLabelCard(widget = widget)
+        "sensor_value_with_icon" -> DashboardSensorValueWithIconCard(widget = widget)
+        "card_with_icon" -> DashboardSensorValueWithIconCard(widget = widget)
+        "status_card" -> DashboardStatusCard(widget = widget)
+        "big_icon_stat_card" -> DashboardBigIconStatCard(widget = widget)
+        "value_status_card" -> DashboardValueStatusCard(widget = widget)
+        else -> DashboardFallbackCard(
+            widget = widget,
+            subtitle = "Unsupported card: ${widget.subType}"
+        )
+    }
+}
+
+@Composable
+private fun DashboardValueCard(widget: DashboardWidget) {
+    val bg = widget.sources.firstOrNull()?.bgColor?.toComposeColorOrNull() ?: Color(0xFFE3DACB)
+    DashboardResponseColorValueCard(
+        title = widget.title,
+        value = widget.currentValue?.let { it.formatForCard() } ?: "--",
+        unit = widget.unit.orEmpty(),
+        background = bg,
+        titleColor = Color(0xFF223461),
+        valueColor = Color(0xFF223461)
+    )
+}
+
+@Composable
+private fun DashboardResponseColorValueCard(
+    title: String,
+    value: String,
+    unit: String,
+    background: Color,
+    titleColor: Color,
+    valueColor: Color
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 178.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = background),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = titleColor,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(88.dp)
+                    .border(1.dp, Color(0xFFB8C1D1), RoundedCornerShape(8.dp))
+                    .background(background, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = valueColor.copy(alpha = 0.78f),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = valueColor.copy(alpha = 0.78f),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardLabelCard(widget: DashboardWidget) {
+    val bg = widget.sources.firstOrNull()?.bgColor?.toComposeColorOrNull() ?: Color(0xFFD4D0CC)
+    DashboardResponseLabelCard(
+        title = widget.title,
+        value = widget.currentValue?.let { it.formatForCard() } ?: "--",
+        unit = widget.unit.orEmpty(),
+        panelBackground = bg,
+        titleColor = Color(0xFF223461),
+        valueColor = Color(0xFF223461)
+    )
+}
+
+@Composable
+private fun DashboardResponseLabelCard(
+    title: String,
+    value: String,
+    unit: String,
+    panelBackground: Color,
+    titleColor: Color,
+    valueColor: Color
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 178.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = panelBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = titleColor,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(86.dp)
+                    .border(2.dp, Color(0xFF1E3A8A), RoundedCornerShape(8.dp))
+                    .background(panelBackground, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = valueColor.copy(alpha = 0.78f),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = valueColor.copy(alpha = 0.78f),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardGradientCard(widget: DashboardWidget) {
+    val shape = RoundedCornerShape(16.dp)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 156.dp),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 156.dp)
+                .clip(shape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF3D5D8B),
+                            Color(0xFF293F75),
+                            Color(0xFF17245C)
+                        )
+                    )
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = widget.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = widget.currentValue?.let { it.formatForCard() } ?: "--",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = widget.unit.orEmpty(),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardSensorValueWithIconCard(widget: DashboardWidget) {
+    val iconBackground = Color(0xFF243B8F)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 180.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .shadow(
+                        elevation = 10.dp,
+                        shape = CircleShape,
+                        ambientColor = Color(0x30000000),
+                        spotColor = Color(0x30000000)
+                    )
+                    .background(
+                        Brush.linearGradient(
+                            listOf(iconBackground, Color(0xFF3852B8))
+                        ),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = widgetIconFromName(widget.icon) ?: widgetIcon(widget),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(34.dp)
+                )
+            }
+            Text(
+                text = widget.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = widget.currentValue?.let { it.formatForCard() } ?: "--",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color(0xFF0F172A),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = widget.unit.orEmpty(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF0F172A)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardStatusCard(widget: DashboardWidget) {
+    val value = widget.currentValue
+    val numericValue = value ?: 0.0
+    val source = widget.sources.firstOrNull()
+    val minValue = source?.minValue ?: 0.0
+    val maxValue = source?.maxValue ?: (minValue + 1.0)
+    val pct = ((numericValue - minValue) / (maxValue - minValue) * 100.0)
+        .coerceIn(0.0, 100.0)
+    val displayedPercent = pct.roundToInt()
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 156.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "$displayedPercent%",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1
+                )
+                Text(
+                    text = widget.title + widget.unit?.takeIf { it.isNotBlank() }?.let { " ($it)" }
+                        .orEmpty(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color(0xFF9CA3AF),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "(${value?.formatForCard() ?: "--"})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF9CA3AF)
+                )
+            }
+
+            ThermometerGauge(percentage = displayedPercent)
+        }
+    }
+}
+
+@Composable
+private fun ThermometerGauge(percentage: Int) {
+    val clamped = percentage.coerceIn(0, 100)
+    val filledSegments = ((clamped / 100f) * 8f).roundToInt().coerceIn(0, 8)
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(22.dp)
+                .height(10.dp)
+                .background(
+                    if (filledSegments >= 8) Color(0xFFE8380D) else Color(0xFF2A2A2A),
+                    RoundedCornerShape(topStart = 11.dp, topEnd = 11.dp)
+                )
+                .border(
+                    2.dp,
+                    Color(0xFF444444),
+                    RoundedCornerShape(topStart = 11.dp, topEnd = 11.dp)
+                )
+        )
+        (0 until 8).forEach { idx ->
+            val segmentIndex = 7 - idx
+            val isFilled = segmentIndex < filledSegments
+            Box(
+                modifier = Modifier
+                    .width(22.dp)
+                    .height(13.dp)
+                    .background(
+                        if (isFilled) Color(0xFFE8380D) else Color(0xFF2A2A2A),
+                        RoundedCornerShape(3.dp)
+                    )
+                    .border(2.dp, Color(0xFF444444), RoundedCornerShape(3.dp))
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .background(Color(0xFFE8380D), RoundedCornerShape(15.dp))
+                .border(2.dp, Color(0xFF444444), RoundedCornerShape(15.dp))
+        )
+    }
+}
+
+@Composable
+private fun DashboardBigIconStatCard(widget: DashboardWidget) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 210.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            val dialSize = maxWidth.coerceAtMost(150.dp)
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = widget.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF223461),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+
+                BigIconStatDial(
+                    value = widget.currentValue?.formatForCard(decimals = 0) ?: "--",
+                    unit = widget.unit.orEmpty(),
+                    size = dialSize
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BigIconStatDial(
+    value: String,
+    unit: String,
+    size: androidx.compose.ui.unit.Dp
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .shadow(
+                elevation = 12.dp,
+                shape = CircleShape,
+                clip = false,
+                ambientColor = Color(0x26000000),
+                spotColor = Color(0x26000000)
+            )
+            .background(
+                color = Color(0xFFE2E8F0),
+                shape = CircleShape
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(7.dp)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White,
+                            Color(0xFFF8FAFC),
+                            Color(0xFFEFF4FA)
+                        )
+                    ),
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(9.dp)
+                    .shadow(
+                        elevation = 2.dp,
+                        shape = CircleShape,
+                        clip = false,
+                        ambientColor = Color(0x14000000),
+                        spotColor = Color(0x14000000)
+                    )
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFFD7DFF1),
+                                Color(0xFF7E91C9),
+                                Color(0xFF6278B4)
+                            )
+                        ),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxSize(0.72f)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.36f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardValueStatusCard(widget: DashboardWidget) {
+    val source = widget.sources.firstOrNull()
+    val mode = source?.valueInputMode ?: "value"
+    val status = computeValueStatus(
+        value = widget.currentValue,
+        mode = mode,
+        bitSelection = source?.bitSelection,
+        colorValues = source?.colorValues
+    )
+    val statusColor = when (status) {
+        "green" -> Color(0xFF009104)
+        "red" -> Color(0xFFEF4444)
+        "yellow" -> Color(0xFFEAB308)
+        else -> Color(0xFF9CA3AF)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 180.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = widget.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF223461),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Box(
+                modifier = Modifier
+                    .size(92.dp)
+            ) {
+                ValueStatusOrb(statusColor = statusColor)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ValueStatusOrb(statusColor: Color) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .shadow(
+                elevation = 14.dp,
+                shape = CircleShape,
+                clip = false,
+                ambientColor = Color(0x59000000),
+                spotColor = Color(0x59000000)
+            )
+            .background(Color(0xFF687386), CircleShape)
+            .padding(5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(2.dp, statusColor, CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            lerp(Color.White, statusColor, 0.62f),
+                            statusColor,
+                            lerp(statusColor, Color.Black, 0.30f)
+                        )
+                    ),
+                    shape = CircleShape
+                )
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 14.dp, y = 12.dp)
+                    .size(22.dp)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.78f), Color.Transparent)
+                        ),
+                        CircleShape
+                    )
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardFallbackCard(widget: DashboardWidget, subtitle: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 116.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = widget.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardSimpleValueCard(
+    title: String,
+    value: String,
+    unit: String,
+    background: Color,
+    titleColor: Color,
+    valueColor: Color
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 156.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = titleColor,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(72.dp)
+                    .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(12.dp))
+                    .background(background, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = valueColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = valueColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class CircularChartItem(
+    val label: String,
+    val value: Double?,
+    val color: Color
+)
+
+@Composable
+private fun DashboardChartCard(widget: DashboardWidget) {
+    when {
+        widget.isHeatMapChart() -> DashboardHeatMapCard(widget = widget)
+        widget.isStateChart() -> DashboardStateChartCard(widget = widget)
+        widget.isAreaChart() -> DashboardAreaChartCard(widget = widget)
+        widget.isBarChart() -> DashboardBarChartCard(widget = widget)
+        widget.isScatterChart() -> DashboardScatterChartCard(widget = widget)
+        widget.isPolarAreaChart() -> DashboardPolarAreaChartCard(widget = widget)
+        widget.isPieChart() -> DashboardPieChartCard(widget = widget)
+        widget.isDonutLikeChart() -> DashboardDonutChartCard(widget = widget)
+        else -> DashboardLineChartCard(widget = widget)
+    }
+}
+
+private data class DashboardMetricRow(
+    val widgets: List<DashboardWidget>,
+    val isFullWidth: Boolean
+)
+
+private fun DashboardWidget.seriesForChartDisplay(): List<DashboardWidgetSeries> {
+    val liveSeries = chartSeries.filter { it.points.isNotEmpty() }
+    if (liveSeries.isNotEmpty()) return liveSeries.toChartDisplaySamples()
+
+    val zoneId = ZoneId.systemDefault()
+    val formatter = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)
+    val start = LocalDate.now(zoneId).atTime(10, 0).atZone(zoneId)
+    val fallbackPoints = (0L..7L).map { hourOffset ->
+        val time = start.plusHours(hourOffset)
+        DashboardWidgetPoint(
+            timestamp = time.toInstant().toEpochMilli(),
+            label = formatter.format(time),
+            value = 0.0
+        )
+    }
+
+    return sources.flatMap { source ->
+        source.fields.mapIndexed { index, field ->
+            val seriesUnit = source.units.getOrNull(index)
+                ?.takeIf { it.isNotBlank() }
+                ?: unit.orEmpty()
+            DashboardWidgetSeries(
+                label = seriesUnit.takeIf { it.isNotBlank() }?.let { "$field ($it)" } ?: field,
+                points = fallbackPoints
+            )
+        }
+    }.distinctBy { it.label }
+}
+
+private fun List<DashboardWidgetSeries>.toChartDisplaySamples(
+    maxPoints: Int = 8
+): List<DashboardWidgetSeries> {
+    val referencePoints = firstOrNull()?.points.orEmpty()
+    if (referencePoints.size <= maxPoints || maxPoints < 2) return this
+
+    val sampledIndexes = (0 until maxPoints)
+        .map { sampleIndex ->
+            ((referencePoints.lastIndex.toDouble() * sampleIndex) / (maxPoints - 1))
+                .roundToInt()
+        }
+        .distinct()
+
+    return map { series ->
+        series.copy(
+            points = sampledIndexes.mapNotNull { index -> series.points.getOrNull(index) }
+        )
+    }
+}
+
+@Composable
+private fun DashboardHeatMapCard(widget: DashboardWidget) {
+    val legend = widget.sources.firstOrNull()?.heatMapLegend.orEmpty()
+    val points = remember(widget, legend) {
+        widget.chartSeries
+            .firstOrNull()
+            ?.points
+            .orEmpty()
+            .sortedBy { it.timestamp }
+            .filter { point -> legend.any { item -> item.value == point.value } }
+    }
+    val timeLabels = remember(points) { points.distinctBy { it.timestamp } }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        HeatMapLegendGrid(legend = legend)
+
+        if (points.isEmpty()) {
+            EmptyHeatMapTimeline()
+            return
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "series-1",
+                modifier = Modifier.width(48.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF5E5F60),
+                maxLines = 1
+            )
+            Canvas(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(92.dp)
+                    .clip(RoundedCornerShape(1.dp))
+            ) {
+                val firstTimestamp = points.first().timestamp
+                val lastTimestamp = points.last().timestamp
+                val duration = (lastTimestamp - firstTimestamp).coerceAtLeast(1L)
+
+                points.forEachIndexed { index, point ->
+                    val start = (point.timestamp - firstTimestamp).toFloat() / duration
+                    val nextTimestamp = points.getOrNull(index + 1)?.timestamp ?: lastTimestamp
+                    val end = if (index == points.lastIndex) 1f
+                    else (nextTimestamp - firstTimestamp).toFloat() / duration
+                    val state = legend.first { item -> item.value == point.value }
+                    drawRect(
+                        color = Color(state.color),
+                        topLeft = androidx.compose.ui.geometry.Offset(size.width * start, 0f),
+                        size = androidx.compose.ui.geometry.Size(
+                            width = (size.width * (end - start)).coerceAtLeast(1f),
+                            height = size.height
+                        )
+                    )
+                }
+
+                timeLabels.forEach { point ->
+                    val fraction = (point.timestamp - firstTimestamp).toFloat() / duration
+                    val x = size.width * fraction
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.28f),
+                        start = androidx.compose.ui.geometry.Offset(x, 0f),
+                        end = androidx.compose.ui.geometry.Offset(x, size.height),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+            }
+        }
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .padding(start = 56.dp)
+        ) {
+            val firstTimestamp = points.first().timestamp
+            val duration = (points.last().timestamp - firstTimestamp).coerceAtLeast(1L)
+            val axisY = 1.dp.toPx()
+            val axisColor = Color(0xFFD9DFE8)
+            val labelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(94, 95, 96)
+                textAlign = Paint.Align.RIGHT
+                textSize = 10.dp.toPx()
+                isAntiAlias = true
+            }
+
+            drawLine(
+                color = axisColor,
+                start = androidx.compose.ui.geometry.Offset(0f, axisY),
+                end = androidx.compose.ui.geometry.Offset(size.width, axisY),
+                strokeWidth = 1.dp.toPx()
+            )
+
+            timeLabels.forEachIndexed { index, point ->
+                val fraction = (point.timestamp - firstTimestamp).toFloat() / duration
+                val x = size.width * fraction
+                drawLine(
+                    color = axisColor,
+                    start = androidx.compose.ui.geometry.Offset(x, axisY),
+                    end = androidx.compose.ui.geometry.Offset(x, axisY + 5.dp.toPx()),
+                    strokeWidth = 1.dp.toPx()
+                )
+                labelPaint.textAlign = when (index) {
+                    0 -> Paint.Align.LEFT
+                    else -> Paint.Align.RIGHT
+                }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-45f, x, 15.dp.toPx())
+                drawContext.canvas.nativeCanvas.drawText(
+                    point.label,
+                    x,
+                    15.dp.toPx(),
+                    labelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyHeatMapTimeline() {
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(170.dp)
+            .padding(horizontal = 8.dp, vertical = 12.dp)
+    ) {
+        val axisY = size.height - 24.dp.toPx()
+        val axisColor = Color(0xFFD9DFE8)
+        drawLine(
+            color = axisColor,
+            start = androidx.compose.ui.geometry.Offset(0f, axisY),
+            end = androidx.compose.ui.geometry.Offset(size.width, axisY),
+            strokeWidth = 1.dp.toPx()
+        )
+        repeat(8) { index ->
+            val x = size.width * index / 7f
+            drawLine(
+                color = axisColor,
+                start = androidx.compose.ui.geometry.Offset(x, axisY),
+                end = androidx.compose.ui.geometry.Offset(x, axisY + 6.dp.toPx()),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeatMapLegendGrid(legend: List<DashboardHeatMapLegendItem>) {
+    ResponsiveLegendFlow(items = legend) { item ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(13.dp)
+                    .background(Color(item.color), RoundedCornerShape(2.dp))
+            )
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF556278),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardDonutChartCard(widget: DashboardWidget) {
+    val items = remember(widget) { widget.circularChartItems() }
+    val drawableSlices = items.filter { item ->
+        val value = item.value
+        value != null && value.isFinite() && value > 0.0
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (drawableSlices.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.4f)
+                .heightIn(min = 220.dp, max = 340.dp)
+                .padding(horizontal = 4.dp, vertical = 4.dp)
+        ) {
+            val diameter = size.minDimension
+            val strokeWidth = diameter * 0.25f
+            val chartDiameter = diameter - strokeWidth
+            val topLeft = androidx.compose.ui.geometry.Offset(
+                x = (size.width - chartDiameter) / 2f,
+                y = (size.height - chartDiameter) / 2f
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(chartDiameter, chartDiameter)
+            val total =
+                drawableSlices.sumOf { it.value ?: 0.0 }.takeIf { it > 0.0 } ?: return@Canvas
+            val gapDegrees = if (drawableSlices.size > 1) 0.35f else 0f
+            var startAngle = -90f
+
+            drawableSlices.forEach { slice ->
+                val rawSweep = ((slice.value ?: 0.0) / total * 360.0).toFloat()
+                val sweep = (rawSweep - gapDegrees).coerceAtLeast(0f)
+                drawArc(
+                    color = slice.color,
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                )
+                startAngle += rawSweep
+            }
+        }
+
+        CircularChartLegendGrid(items = items)
+    }
+}
+
+@Composable
+private fun DashboardPieChartCard(widget: DashboardWidget) {
+    val items = remember(widget) { widget.circularChartItems() }
+    val drawableSlices = items.filter { item ->
+        val value = item.value
+        value != null && value.isFinite() && value > 0.0
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (drawableSlices.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.4f)
+                .heightIn(min = 220.dp, max = 340.dp)
+                .padding(horizontal = 4.dp, vertical = 4.dp)
+        ) {
+            val diameter = size.minDimension
+            val topLeft = androidx.compose.ui.geometry.Offset(
+                x = (size.width - diameter) / 2f,
+                y = (size.height - diameter) / 2f
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
+            val total =
+                drawableSlices.sumOf { it.value ?: 0.0 }.takeIf { it > 0.0 } ?: return@Canvas
+            val gapDegrees = if (drawableSlices.size > 1) 0.3f else 0f
+            var startAngle = -90f
+
+            drawableSlices.forEach { slice ->
+                val rawSweep = ((slice.value ?: 0.0) / total * 360.0).toFloat()
+                val sweep = (rawSweep - gapDegrees).coerceAtLeast(0f)
+                drawArc(
+                    color = slice.color,
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = true,
+                    topLeft = topLeft,
+                    size = arcSize
+                )
+                startAngle += rawSweep
+            }
+        }
+
+        CircularChartLegendGrid(items = items)
+    }
+}
+
+@Composable
+private fun DashboardPolarAreaChartCard(widget: DashboardWidget) {
+    val items = remember(widget) { widget.polarChartItems() }
+    val drawableSlices = items.filter { item ->
+        val value = item.value
+        value != null && value.isFinite()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (drawableSlices.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.5f)
+                .heightIn(min = 220.dp, max = 340.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            PolarAreaCanvas(
+                widget = widget,
+                drawableSlices = drawableSlices,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+            PolarAreaLegendList(
+                items = items,
+                modifier = Modifier.weight(0.95f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PolarAreaCanvas(
+    widget: DashboardWidget,
+    drawableSlices: List<CircularChartItem>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(
+        modifier = modifier
+            .aspectRatio(1.5f)
+            .heightIn(min = 220.dp, max = 340.dp)
+            .padding(horizontal = 2.dp, vertical = 4.dp)
+    ) {
+        val diameter = size.minDimension * 0.9f
+        val radius = diameter / 2f
+        val center = androidx.compose.ui.geometry.Offset(
+            x = size.width / 2f,
+            y = size.height / 2f + 10f
+        )
+        val maxValue = widget.polarAxisMax(drawableSlices)
+        val sliceSweep = 360f / drawableSlices.size
+        val gapDegrees = if (drawableSlices.size > 1) 0.6f else 0f
+
+        drawableSlices.forEachIndexed { index, item ->
+            val value = item.value ?: return@forEachIndexed
+            val sliceRadius =
+                (radius * ((value + maxValue) / (2.0 * maxValue)).coerceIn(0.0, 1.0)).toFloat()
+            val topLeft = androidx.compose.ui.geometry.Offset(
+                x = center.x - sliceRadius,
+                y = center.y - sliceRadius
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(
+                width = sliceRadius * 2f,
+                height = sliceRadius * 2f
+            )
+            drawArc(
+                color = item.color.copy(alpha = 0.72f),
+                startAngle = -90f + (index * sliceSweep) + (gapDegrees / 2f),
+                sweepAngle = (sliceSweep - gapDegrees).coerceAtLeast(0f),
+                useCenter = true,
+                topLeft = topLeft,
+                size = arcSize
+            )
+        }
+
+        val gridColor = Color(0xFFE5E7EB)
+        val ringCount = 6
+        repeat(ringCount + 1) { index ->
+            val ringRadius = radius * index / ringCount
+            drawCircle(
+                color = gridColor,
+                radius = ringRadius,
+                center = center,
+                style = Stroke(width = 2f)
+            )
+        }
+        drawLine(
+            color = gridColor,
+            start = androidx.compose.ui.geometry.Offset(center.x, center.y - radius),
+            end = androidx.compose.ui.geometry.Offset(center.x, center.y + radius),
+            strokeWidth = 2f
+        )
+        drawLine(
+            color = gridColor,
+            start = androidx.compose.ui.geometry.Offset(center.x - radius, center.y),
+            end = androidx.compose.ui.geometry.Offset(center.x + radius, center.y),
+            strokeWidth = 2f
+        )
+
+        val labelPaint = Paint().apply {
+            color = android.graphics.Color.rgb(110, 118, 130)
+            textAlign = Paint.Align.CENTER
+            textSize = 22f
+            isAntiAlias = true
+        }
+        val axisValues = listOf(
+            maxValue,
+            maxValue * 2.0 / 3.0,
+            maxValue / 3.0,
+            0.0,
+            -maxValue / 3.0,
+            -maxValue * 2.0 / 3.0,
+            -maxValue
+        )
+        axisValues.forEachIndexed { index, value ->
+            val y = center.y - radius + (2f * radius * index / (axisValues.size - 1))
+            drawContext.canvas.nativeCanvas.drawText(
+                value.formatPolarAxisLabel(),
+                center.x,
+                y + 8f,
+                labelPaint
+            )
+        }
+    }
+}
+
+@Composable
+private fun PolarAreaLegendList(
+    items: List<CircularChartItem>,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items.forEach { item ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 44.dp, height = 14.dp)
+                        .background(item.color, RoundedCornerShape(1.dp))
+                )
+                Text(
+                    text = item.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF66768C),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+private fun DashboardWidget.isDonutLikeChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase()
+    return typeKey == "charts" && subTypeKey in setOf("donut", "doughnut")
+}
+
+private fun DashboardWidget.isPieChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase()
+    return typeKey == "charts" && subTypeKey == "pie"
+}
+
+private fun DashboardWidget.isPolarAreaChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase().replace("_", " ").replace("-", " ")
+    return typeKey == "charts" && subTypeKey in setOf("polar area", "polararea", "polar")
+}
+
+private fun DashboardWidget.isAreaChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase().replace("_", " ").replace("-", " ")
+    return typeKey == "charts" && subTypeKey in setOf("area", "area chart", "areachart")
+}
+
+private fun DashboardWidget.isBarChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase().replace("_", " ").replace("-", " ")
+    return typeKey == "charts" && subTypeKey in setOf("bar", "bar chart", "barchart")
+}
+
+private fun DashboardWidget.isScatterChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase().replace("_", " ").replace("-", " ")
+    return typeKey == "charts" && subTypeKey in setOf(
+        "scatter",
+        "scattered",
+        "scatter chart",
+        "scattered chart",
+        "scatterchart",
+        "scatteredchart"
+    )
+}
+
+private fun DashboardWidget.isStateChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase().replace("_", " ").replace("-", " ")
+    return typeKey == "charts" && subTypeKey in setOf(
+        "state",
+        "state chart",
+        "statechart"
+    )
+}
+
+private fun DashboardWidget.isHeatMapChart(): Boolean {
+    val typeKey = type.trim().lowercase()
+    val subTypeKey = subType.orEmpty().trim().lowercase().replace("-", "_")
+    return typeKey == "charts" && subTypeKey in setOf("heat_map", "heatmap")
+}
+
+private fun DashboardWidget.circularChartItems(
+    colorPalette: List<Color> = ChartSeriesColors
+): List<CircularChartItem> {
+    val fields = sources
+        .flatMap { it.fields }
+        .distinct()
+    if (fields.isEmpty()) return emptyList()
+
+    val items = fields.mapIndexed { index, field ->
+        val fallbackSeries = chartSeries.firstOrNull { series ->
+            series.label == field || series.label.startsWith("$field (")
+        }
+        val label = fallbackSeries?.label ?: field.withWidgetUnit(unit)
+        val currentValue = valuesByField[field]
+        val seriesTotal = fallbackSeries
+            ?.points
+            ?.map { it.value }
+            ?.filter { it.isFinite() && it != 0.0 }
+            ?.sumOf { abs(it) }
+            ?.takeIf { it > 0.0 }
+        val latestSeriesValue = fallbackSeries?.points?.lastOrNull()?.value
+        val value = seriesTotal
+            ?: currentValue?.toDonutMagnitudeOrNull()
+            ?: latestSeriesValue?.toDonutMagnitudeOrNull()
+            ?: currentValue?.takeIf { it.isFinite() }
+            ?: latestSeriesValue?.takeIf { it.isFinite() }
+
+        CircularChartItem(
+            label = label,
+            value = value,
+            color = colorPalette[index.mod(colorPalette.size)]
+        )
+    }
+
+    return items
+}
+
+private fun Double.toDonutMagnitudeOrNull(): Double? =
+    takeIf { it.isFinite() && it != 0.0 }?.let { abs(it) }
+
+private fun DashboardWidget.polarChartItems(): List<CircularChartItem> {
+    val fields = sources
+        .flatMap { it.fields }
+        .distinct()
+    if (fields.isEmpty()) return emptyList()
+
+    return fields.mapIndexed { index, field ->
+        val fallbackSeries = chartSeries.firstOrNull { series ->
+            series.label == field || series.label.startsWith("$field (")
+        }
+        val label = fallbackSeries?.label ?: field.withWidgetUnit(unit)
+        val currentValue = valuesByField[field]?.takeIf { it.isFinite() }
+        val latestSeriesValue =
+            fallbackSeries?.points?.lastOrNull()?.value?.takeIf { it.isFinite() }
+        CircularChartItem(
+            label = label,
+            value = currentValue ?: latestSeriesValue,
+            color = PolarAreaColors[index.mod(PolarAreaColors.size)]
+        )
+    }
+}
+
+private fun DashboardWidget.polarAxisMax(items: List<CircularChartItem>): Double {
+    val configuredMax = sources
+        .flatMap { source -> source.maxValues + listOf(source.maxValue) }
+        .filterNotNull()
+        .filter { it.isFinite() && it != 0.0 }
+        .maxOfOrNull { abs(it) }
+    val dataMax = items
+        .mapNotNull { it.value }
+        .filter { it.isFinite() && it > 0.0 }
+        .maxOrNull()
+        ?: 1.0
+    return configuredMax?.takeIf { it > 0.0 } ?: dataMax.nicePolarMax()
+}
+
+private fun Double.nicePolarMax(): Double {
+    val value = takeIf { it.isFinite() && it > 0.0 } ?: return 1.0
+    val step = when {
+        value <= 1.0 -> 0.1
+        value <= 10.0 -> 1.0
+        value <= 100.0 -> 10.0
+        else -> 100.0
+    }
+    return kotlin.math.ceil(value / step) * step
+}
+
+private fun Double.formatPolarAxisLabel(): String =
+    if (abs(this) >= 10.0 && this % 1.0 == 0.0) {
+        this.toInt().toString()
+    } else {
+        formatOneDecimal()
+    }
+
+private fun String.withWidgetUnit(unit: String?): String {
+    val unitText = unit?.takeIf { it.isNotBlank() } ?: return this
+    return "$this ($unitText)"
+}
+
+@Composable
+private fun DashboardBarChartCard(widget: DashboardWidget) {
+    val plottedSeries = remember(widget) { widget.seriesForChartDisplay() }
+    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() } ?: "BarChart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() } ?: "BarChart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF6A6A6A),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (plottedSeries.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        BarLegendGrid(series = plottedSeries)
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.6f)
+                .heightIn(min = 220.dp, max = 340.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
+        ) {
+            val allValues = plottedSeries.flatMap { it.points }.map { it.value }
+            val axisBounds = chartAxisBounds(allValues, includeZero = true)
+            val yMin = axisBounds.min
+            val yMax = axisBounds.max
+            val valueRange = yMax - yMin
+
+            val leftPadding = 42f
+            val rightPadding = 8f
+            val topPadding = 8f
+            val bottomPadding = 52f
+            val plotLeft = leftPadding
+            val plotTop = topPadding
+            val plotRight = size.width - rightPadding
+            val plotBottom = size.height - bottomPadding
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+            val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
+            val verticalSteps = axisBounds.steps
+            val gridColor = Color(0xFFE1E5EA)
+
+            fun yForValue(value: Double): Float =
+                plotBottom - (((value - yMin) / valueRange).toFloat() * plotHeight)
+
+            repeat(verticalSteps + 1) { step ->
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(plotLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(plotRight, y),
+                    strokeWidth = 1f
+                )
+            }
+            repeat(horizontalSteps + 1) { step ->
+                val x = plotLeft + (plotWidth * step / horizontalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1f
+                )
+            }
+
+            val yLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 16f
+                isAntiAlias = true
+            }
+            repeat(verticalSteps + 1) { step ->
+                val value = yMax - (valueRange * step / verticalSteps)
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.formatBarAxisLabel(),
+                    plotLeft - 8f,
+                    y + 6f,
+                    yLabelPaint
+                )
+            }
+
+            val zeroY = yForValue(0.0.coerceIn(yMin, yMax))
+            val groupCount = xLabels.size.coerceAtLeast(1)
+            val groupWidth = plotWidth / groupCount
+            val seriesCount = plottedSeries.size.coerceAtLeast(1)
+            val totalBarWidth = groupWidth * 0.68f
+            val barWidth = (totalBarWidth / seriesCount).coerceAtMost(14f).coerceAtLeast(2f)
+            val firstBarOffset = -(barWidth * seriesCount) / 2f
+
+            xLabels.forEachIndexed { pointIndex, _ ->
+                val groupCenterX = plotLeft + (groupWidth * pointIndex) + (groupWidth / 2f)
+                plottedSeries.forEachIndexed { seriesIndex, series ->
+                    val point = series.points.getOrNull(pointIndex) ?: return@forEachIndexed
+                    val y = yForValue(point.value)
+                    val barLeft = groupCenterX + firstBarOffset + (seriesIndex * barWidth)
+                    val barTop = kotlin.math.min(y, zeroY)
+                    val barHeight = abs(zeroY - y).coerceAtLeast(1f)
+                    drawRect(
+                        color = ChartSeriesColors[seriesIndex.mod(ChartSeriesColors.size)],
+                        topLeft = androidx.compose.ui.geometry.Offset(barLeft, barTop),
+                        size = androidx.compose.ui.geometry.Size(barWidth * 0.82f, barHeight)
+                    )
+                }
+            }
+
+            val xLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
+                isAntiAlias = true
+            }
+            xLabels.forEachIndexed { index, label ->
+                val x = if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * index / (xLabels.size - 1))
+                }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    x,
+                    plotBottom + 28f,
+                    xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardAreaChartCard(widget: DashboardWidget) {
+    val plottedSeries = remember(widget) { widget.seriesForChartDisplay() }
+    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() } ?: "Area Chart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (plottedSeries.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        AreaLegendGrid(series = plottedSeries)
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.6f)
+                .heightIn(min = 220.dp, max = 340.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
+        ) {
+            val allValues = plottedSeries.flatMap { it.points }.map { it.value }
+            val axisBounds = chartAxisBounds(allValues, includeZero = false)
+            val yMin = axisBounds.min
+            val yMax = axisBounds.max
+            val valueRange = yMax - yMin
+
+            val leftPadding = 48f
+            val rightPadding = 10f
+            val topPadding = 8f
+            val bottomPadding = 52f
+            val plotLeft = leftPadding
+            val plotTop = topPadding
+            val plotRight = size.width - rightPadding
+            val plotBottom = size.height - bottomPadding
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+            val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
+            val verticalSteps = 4
+            val gridColor = Color(0xFFE1E5EA)
+
+            fun yForValue(value: Double): Float =
+                plotBottom - (((value - yMin) / valueRange).toFloat() * plotHeight)
+
+            repeat(verticalSteps + 1) { step ->
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(plotLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(plotRight, y),
+                    strokeWidth = 1f
+                )
+            }
+            repeat(horizontalSteps + 1) { step ->
+                val x = plotLeft + (plotWidth * step / horizontalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1f
+                )
+            }
+
+            val yLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(65, 74, 86)
+                textAlign = Paint.Align.RIGHT
+                textSize = 16f
+                isAntiAlias = true
+            }
+            repeat(verticalSteps + 1) { step ->
+                val value = yMax - (valueRange * step / verticalSteps)
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.formatAreaAxisLabel(),
+                    plotLeft - 8f,
+                    y + 6f,
+                    yLabelPaint
+                )
+            }
+
+            val zeroBaseline = yForValue(0.0.coerceIn(yMin, yMax))
+            plottedSeries.forEachIndexed { seriesIndex, series ->
+                val color = ChartSeriesColors[seriesIndex.mod(ChartSeriesColors.size)]
+                val points = series.points
+                if (points.isEmpty()) return@forEachIndexed
+
+                val linePath = Path()
+                val areaPath = Path()
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                    }
+                    val y = yForValue(point.value)
+                    if (pointIndex == 0) {
+                        linePath.moveTo(x, y)
+                        areaPath.moveTo(x, zeroBaseline)
+                        areaPath.lineTo(x, y)
+                    } else {
+                        linePath.lineTo(x, y)
+                        areaPath.lineTo(x, y)
+                    }
+                    if (pointIndex == points.lastIndex) {
+                        areaPath.lineTo(x, zeroBaseline)
+                        areaPath.close()
+                    }
+                }
+
+                drawPath(
+                    path = areaPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(color.copy(alpha = 0.5f), color.copy(alpha = 0.1f)),
+                        startY = plotTop,
+                        endY = plotBottom
+                    )
+                )
+                drawPath(
+                    path = linePath,
+                    color = color,
+                    style = Stroke(width = 3f, cap = StrokeCap.Round)
+                )
+            }
+
+            val xLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
+                isAntiAlias = true
+            }
+            xLabels.forEachIndexed { index, label ->
+                val x = if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * index / (xLabels.size - 1))
+                }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    x,
+                    plotBottom + 28f,
+                    xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardStateChartCard(widget: DashboardWidget) {
+    val plottedSeries = remember(widget) { widget.seriesForChartDisplay() }
+    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() } ?: "State Chart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (plottedSeries.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        StateChartLegendGrid(series = plottedSeries)
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.6f)
+                .heightIn(min = 220.dp, max = 340.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
+        ) {
+            val allValues = plottedSeries.flatMap { it.points }.map { it.value }
+            val axisMax = widget.stateAxisAbsMax(allValues)
+            val yMin = -axisMax
+            val yMax = axisMax
+            val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: 1.0
+
+            val leftPadding = 34f
+            val rightPadding = 4f
+            val topPadding = 6f
+            val bottomPadding = 52f
+            val plotLeft = leftPadding
+            val plotTop = topPadding
+            val plotRight = size.width - rightPadding
+            val plotBottom = size.height - bottomPadding
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+            val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
+            val verticalSteps = ((valueRange / 200.0).roundToInt()).coerceIn(4, 8)
+            val gridColor = Color(0xFFE1E5EA)
+
+            repeat(verticalSteps + 1) { step ->
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(plotLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(plotRight, y),
+                    strokeWidth = 1f
+                )
+            }
+            repeat(horizontalSteps + 1) { step ->
+                val x = plotLeft + (plotWidth * step / horizontalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1f
+                )
+            }
+
+            val yLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 18f
+                isAntiAlias = true
+            }
+            repeat(verticalSteps + 1) { step ->
+                val value = yMax - (valueRange * step / verticalSteps)
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.formatStateAxisLabel(),
+                    plotLeft - 8f,
+                    y + 7f,
+                    yLabelPaint
+                )
+            }
+
+            plottedSeries.forEachIndexed { seriesIndex, series ->
+                val color = ChartSeriesColors[seriesIndex.mod(ChartSeriesColors.size)]
+                val points = series.points
+                if (points.isEmpty()) return@forEachIndexed
+
+                val path = Path()
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                    }
+                    val y =
+                        plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
+                    if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(
+                    path = path,
+                    color = color,
+                    style = Stroke(width = 4f, cap = StrokeCap.Round)
+                )
+
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                    }
+                    val y =
+                        plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
+                    drawCircle(
+                        color = Color.White,
+                        radius = 4.5f,
+                        center = androidx.compose.ui.geometry.Offset(x, y)
+                    )
+                    drawCircle(
+                        color = color,
+                        radius = 4.5f,
+                        center = androidx.compose.ui.geometry.Offset(x, y),
+                        style = Stroke(width = 2f)
+                    )
+                }
+            }
+
+            val xLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
+                isAntiAlias = true
+            }
+            xLabels.forEachIndexed { index, label ->
+                val x = if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * index / (xLabels.size - 1))
+                }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    x,
+                    plotBottom + 28f,
+                    xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardScatterChartCard(widget: DashboardWidget) {
+    val plottedSeries = remember(widget) { widget.seriesForChartDisplay() }
+    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() }
+                ?: widget.unit?.takeIf { it.isNotBlank() }
+                ?: "Scattered Chart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (plottedSeries.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        ScatterLegendGrid(series = plottedSeries)
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.6f)
+                .heightIn(min = 220.dp, max = 340.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
+        ) {
+            val allValues = plottedSeries.flatMap { it.points }.map { it.value }
+            val rawMin = allValues.minOrNull() ?: 0.0
+            val rawMax = allValues.maxOrNull() ?: 1.0
+            val configuredMin = widget.scatterConfiguredMin()
+            val configuredMax = widget.scatterConfiguredMax()
+            val yMin = configuredMin
+                ?: if (rawMin >= 0.0) 0.0 else rawMin.niceScatterMin()
+            val yMax =
+                (configuredMax ?: rawMax.niceScatterMax()).takeIf { it > yMin } ?: (yMin + 1.0)
+            val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: 1.0
+
+            val leftPadding = 42f
+            val rightPadding = 10f
+            val topPadding = 8f
+            val bottomPadding = 52f
+            val plotLeft = leftPadding
+            val plotTop = topPadding
+            val plotRight = size.width - rightPadding
+            val plotBottom = size.height - bottomPadding
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+            val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
+            val verticalSteps = ((valueRange / 100.0).roundToInt())
+                .coerceIn(4, 10)
+
+            val gridColor = Color(0xFFE1E5EA)
+            repeat(verticalSteps + 1) { step ->
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(plotLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(plotRight, y),
+                    strokeWidth = 1f
+                )
+            }
+            repeat(horizontalSteps + 1) { step ->
+                val x = plotLeft + (plotWidth * step / horizontalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1f
+                )
+            }
+
+            val labelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 24f
+                isAntiAlias = true
+            }
+            repeat(verticalSteps + 1) { step ->
+                val value = yMax - (valueRange * step / verticalSteps)
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.formatScatterAxisLabel(),
+                    plotLeft - 8f,
+                    y + 8f,
+                    labelPaint
+                )
+            }
+
+            plottedSeries.forEachIndexed { seriesIndex, series ->
+                val color = ChartSeriesColors[seriesIndex.mod(ChartSeriesColors.size)]
+                val points = series.points
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                    }
+                    val y =
+                        plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
+                    drawCircle(
+                        color = color,
+                        radius = 4.8f,
+                        center = androidx.compose.ui.geometry.Offset(x, y)
+                    )
+                }
+            }
+
+            val xLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
+                isAntiAlias = true
+            }
+            xLabels.forEachIndexed { index, label ->
+                val x = if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * index / (xLabels.size - 1))
+                }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    x,
+                    plotBottom + 28f,
+                    xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun BarLegendGrid(series: List<DashboardWidgetSeries>) {
+    SeriesLegendFlow(series, SeriesLegendMarker.Bar)
+}
+
+@Composable
+private fun AreaLegendGrid(series: List<DashboardWidgetSeries>) {
+    SeriesLegendFlow(series, SeriesLegendMarker.Dot)
+}
+
+@Composable
+private fun ScatterLegendGrid(series: List<DashboardWidgetSeries>) {
+    SeriesLegendFlow(series, SeriesLegendMarker.LargeBar)
+}
+
+@Composable
+private fun StateChartLegendGrid(series: List<DashboardWidgetSeries>) {
+    SeriesLegendFlow(series, SeriesLegendMarker.OutlineBar)
+}
+
+private fun DashboardWidget.stateAxisAbsMax(values: List<Double>): Double {
+    val configuredMax = sources
+        .flatMap { source ->
+            source.minValues + source.maxValues + listOf(
+                source.minValue,
+                source.maxValue
+            )
+        }
+        .filterNotNull()
+        .filter { it.isFinite() }
+        .maxOfOrNull { abs(it) }
+    val dataMax = values
+        .filter { it.isFinite() }
+        .maxOfOrNull { abs(it) }
+    return (configuredMax ?: dataMax ?: 1.0).niceStateAxisAbsMax()
+}
+
+private fun Double.niceStateAxisAbsMax(): Double {
+    val value = takeIf { it.isFinite() && it > 0.0 } ?: return 1.0
+    val step = niceChartStep(value / 4.0)
+    return kotlin.math.ceil(value / step) * step
+}
+
+private fun Long.toHourBucket(): Long =
+    java.time.Instant.ofEpochMilli(this)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDateTime()
+        .withMinute(0)
+        .withSecond(0)
+        .withNano(0)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toInstant()
+        .toEpochMilli()
+
+private fun Double.niceScatterMax(): Double {
+    val value = takeIf { it.isFinite() } ?: return 1.0
+    if (value <= 0.0) return 1.0
+    val step = when {
+        value <= 1.0 -> 0.1
+        value <= 10.0 -> 1.0
+        value <= 100.0 -> 10.0
+        else -> 100.0
+    }
+    return kotlin.math.ceil(value / step) * step
+}
+
+private fun Double.niceScatterMin(): Double {
+    val value = takeIf { it.isFinite() } ?: return 0.0
+    if (value >= 0.0) return 0.0
+    val step = when {
+        abs(value) <= 1.0 -> 0.1
+        abs(value) <= 10.0 -> 1.0
+        abs(value) <= 100.0 -> 10.0
+        else -> 100.0
+    }
+    return kotlin.math.floor(value / step) * step
+}
+
+private fun DashboardWidget.scatterConfiguredMin(): Double? =
+    sources
+        .flatMap { source -> source.minValues + listOf(source.minValue) }
+        .filterNotNull()
+        .filter { it.isFinite() }
+        .minOrNull()
+
+private fun DashboardWidget.scatterConfiguredMax(): Double? =
+    sources
+        .flatMap { source -> source.maxValues + listOf(source.maxValue) }
+        .filterNotNull()
+        .filter { it.isFinite() }
+        .maxOrNull()
+
+private fun Double.formatScatterAxisLabel(): String =
+    if (this == 0.0) {
+        "00"
+    } else if (abs(this) >= 10.0 && this % 1.0 == 0.0) {
+        this.toInt().toString()
+    } else {
+        formatOneDecimal()
+    }
+
+private fun Double.formatAreaAxisLabel(): String =
+    String.format(java.util.Locale.US, "%.2f", this)
+
+private data class ChartAxisBounds(
+    val min: Double,
+    val max: Double,
+    val steps: Int = 5
+)
+
+private fun chartAxisBounds(
+    values: List<Double>,
+    includeZero: Boolean
+): ChartAxisBounds {
+    val finiteValues = values.filter { it.isFinite() }
+    if (finiteValues.isEmpty()) return ChartAxisBounds(-1.0, 1.0, 4)
+
+    var rawMin = finiteValues.minOrNull() ?: 0.0
+    var rawMax = finiteValues.maxOrNull() ?: 0.0
+    if (includeZero) {
+        rawMin = kotlin.math.min(rawMin, 0.0)
+        rawMax = kotlin.math.max(rawMax, 0.0)
+    }
+    if (rawMin == rawMax) {
+        if (rawMin == 0.0) return ChartAxisBounds(-1.0, 1.0, 4)
+        val padding = (abs(rawMin) * 0.1).coerceAtLeast(0.1)
+        rawMin -= padding
+        rawMax += padding
+    }
+
+    val step = niceChartStep((rawMax - rawMin) / 5.0)
+    val min = kotlin.math.floor(rawMin / step) * step
+    val max = kotlin.math.ceil(rawMax / step) * step
+    return ChartAxisBounds(
+        min = min,
+        max = max.takeIf { it > min } ?: (min + DEFAULT_CHART_AXIS_RANGE),
+        steps = (((max - min) / step).roundToInt()).coerceIn(4, 8)
+    )
+}
+
+private fun niceChartStep(rawStep: Double): Double {
+    val safeStep = rawStep.takeIf { it.isFinite() && it > 0.0 } ?: 0.5
+    val magnitude = Math.pow(10.0, kotlin.math.floor(kotlin.math.log10(safeStep)))
+    val normalized = safeStep / magnitude
+    val niceNormalized = when {
+        normalized <= 1.0 -> 1.0
+        normalized <= 2.0 -> 2.0
+        normalized <= 5.0 -> 5.0
+        else -> 10.0
+    }
+    return niceNormalized * magnitude
+}
+
+private fun Double.formatBarAxisLabel(): String =
+    if (this % 1.0 == 0.0) {
+        this.toInt().toString()
+    } else {
+        formatOneDecimal()
+    }
+
+private fun Double.formatStateAxisLabel(): String =
+    if (abs(this) >= 10.0 && this % 1.0 == 0.0) {
+        this.toInt().toString()
+    } else {
+        formatOneDecimal()
+    }
+
+@Composable
+private fun CircularChartLegendGrid(items: List<CircularChartItem>) {
+    ResponsiveLegendFlow(items = items) { item ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 48.dp, height = 16.dp)
+                    .background(item.color, RoundedCornerShape(2.dp))
+            )
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF66768C),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardLineChartCard(widget: DashboardWidget) {
+    val plottedSeries = remember(widget) { widget.seriesForChartDisplay() }
+    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
+    val allValues = plottedSeries.flatMap { it.points }.map { it.value }
+    val axisBounds = chartAxisBounds(allValues, includeZero = false)
+    val yMin = axisBounds.min
+    val yMax = axisBounds.max
+    val valueRange = yMax - yMin
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = widget.title.takeIf { it.isNotBlank() } ?: "Line Chart",
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(0xFF172554),
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (plottedSeries.isEmpty()) {
+            Text(
+                text = "No live series available yet.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            return
+        }
+
+        LineLegendGrid(series = plottedSeries)
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.6f)
+                .heightIn(min = 220.dp, max = 340.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
+        ) {
+            val leftPadding = 42f
+            val rightPadding = 8f
+            val topPadding = 8f
+            val bottomPadding = 52f
+            val plotLeft = leftPadding
+            val plotTop = topPadding
+            val plotRight = size.width - rightPadding
+            val plotBottom = size.height - bottomPadding
+            val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+            val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+            val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
+            val verticalSteps = axisBounds.steps
+            val gridColor = Color(0xFFE1E5EA)
+
+            fun yForValue(value: Double): Float =
+                plotBottom - (((value - yMin) / valueRange).toFloat() * plotHeight)
+
+            repeat(verticalSteps + 1) { step ->
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(plotLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(plotRight, y),
+                    strokeWidth = 1f
+                )
+            }
+            repeat(horizontalSteps + 1) { step ->
+                val x = plotLeft + (plotWidth * step / horizontalSteps)
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1f
+                )
+            }
+
+            val yLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 16f
+                isAntiAlias = true
+            }
+            repeat(verticalSteps + 1) { step ->
+                val value = yMax - (valueRange * step / verticalSteps)
+                val y = plotTop + (plotHeight * step / verticalSteps)
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.formatBarAxisLabel(),
+                    plotLeft - 8f,
+                    y + 6f,
+                    yLabelPaint
+                )
+            }
+
+            plottedSeries.forEachIndexed { index, dashboardWidgetSeries ->
+                val points = dashboardWidgetSeries.points
+                if (points.isEmpty()) return@forEachIndexed
+
+                val path = Path()
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                    }
+                    val y = yForValue(point.value)
+                    if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+
+                val color = ChartSeriesColors[index.mod(ChartSeriesColors.size)]
+                drawPath(
+                    path = path,
+                    color = color,
+                    style = Stroke(width = 3f, cap = StrokeCap.Round)
+                )
+
+                points.forEachIndexed { pointIndex, point ->
+                    val x = if (points.size == 1) {
+                        plotLeft + (plotWidth / 2f)
+                    } else {
+                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                    }
+                    val y = yForValue(point.value)
+                    drawCircle(color = color, radius = 4.5f, center = androidx.compose.ui.geometry.Offset(x, y))
+                    drawCircle(color = Color.White, radius = 2.2f, center = androidx.compose.ui.geometry.Offset(x, y))
+                }
+            }
+
+            val xLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 13f
+                isAntiAlias = true
+            }
+            xLabels.forEachIndexed { index, label ->
+                val x = if (xLabels.size == 1) {
+                    plotLeft + (plotWidth / 2f)
+                } else {
+                    plotLeft + (plotWidth * index / (xLabels.size - 1))
+                }
+                drawContext.canvas.nativeCanvas.save()
+                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    x,
+                    plotBottom + 28f,
+                    xLabelPaint
+                )
+                drawContext.canvas.nativeCanvas.restore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun LineLegendGrid(series: List<DashboardWidgetSeries>) {
+    SeriesLegendFlow(series, SeriesLegendMarker.Bar)
+}
+
+@Composable
+private fun LegendGrid(series: List<DashboardWidgetSeries>) {
+    SeriesLegendFlow(series, SeriesLegendMarker.OutlineBox)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DashboardGroupSelector(
+    groups: List<String>,
+    selectedGroup: String,
+    onGroupSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = selectedGroup,
+            onValueChange = {},
+            readOnly = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(
+                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                    enabled = true
+                ),
+            shape = RoundedCornerShape(20.dp),
+            textStyle = MaterialTheme.typography.titleMedium.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedBorderColor = MaterialTheme.colorScheme.outline,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+            )
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            groups.forEach { group ->
+                DropdownMenuItem(
+                    text = { Text(group) },
+                    onClick = {
+                        onGroupSelected(group)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+private fun isChartWidget(widget: DashboardWidget): Boolean {
+    val type = widget.type.lowercase()
+    val subType = widget.subType.orEmpty().lowercase()
+    return type == "charts" || "chart" in subType || "line" in subType || "area" in subType || "bar" in subType
+}
+
+private fun widgetIcon(widget: DashboardWidget): ImageVector {
+    val title = widget.title.lowercase()
+    val unit = widget.unit.orEmpty().lowercase()
+    return when {
+        unit.contains("kv") || title.contains("volt") -> Icons.AutoMirrored.Outlined.ShowChart
+        unit.contains("mw") || title.contains("power") -> Icons.Outlined.Bolt
+        unit.contains("a") || title.contains("current") -> Icons.Outlined.Speed
+        else -> Icons.Outlined.Timeline
+    }
+}
+
+private fun widgetIconFromName(iconName: String?): ImageVector {
+    return dashboardLucideIcon(iconName, fallback = Lucide.Thermometer)
+}
+
+private fun widgetValueLabel(widget: DashboardWidget): String =
+    widget.currentValue?.let { it.formatForCard() } ?: "--"
+
+private fun Double?.formatDashboardValue(unit: String? = null): String {
+    val valueText = this?.formatForCard() ?: "--"
+    val unitText = unit?.takeIf { it.isNotBlank() }
+    return if (this != null && unitText != null) "$valueText $unitText" else valueText
+}
+
+private fun Double.formatCompositePart(): String =
+    if (!isFinite()) "--"
+    else if (this % 1.0 == 0.0) roundToInt().toString()
+    else formatForCard()
+
+private fun Double?.formatWebCompositeValue(): String = when {
+    this == null || !isFinite() -> "--"
+    this % 1.0 == 0.0 -> toLong().toString()
+    else -> toString()
+}
+
+private fun Double.formatForCard(decimals: Int = 2): String =
+    if (!this.isFinite()) "--"
+    else "%.${decimals}f".format(java.util.Locale.US, this)
+
+private fun Double.formatOneDecimal(): String =
+    if (!this.isFinite()) "--"
+    else "%.1f".format(java.util.Locale.US, this)
+
+private fun String.toComposeColorOrNull(): Color? {
+    val raw = trim()
+    if (!raw.startsWith("#")) return null
+    val hex = raw.removePrefix("#")
+    val normalized = when (hex.length) {
+        3 -> hex.map { "$it$it" }.joinToString(separator = "")
+        6 -> hex
+        8 -> hex
+        else -> return null
+    }
+
+    return runCatching {
+        val colorLong = normalized.toLong(16)
+        when (normalized.length) {
+            6 -> Color((0xFF000000 or colorLong).toInt())
+            8 -> {
+                val a = ((colorLong shr 24) and 0xFF).toInt()
+                val r = ((colorLong shr 16) and 0xFF).toInt()
+                val g = ((colorLong shr 8) and 0xFF).toInt()
+                val b = (colorLong and 0xFF).toInt()
+                Color(r, g, b, a)
+            }
+
+            else -> null
+        }
+    }.getOrNull()
+}
+
+private fun computeValueStatus(
+    value: Double?,
+    mode: String,
+    bitSelection: Int?,
+    colorValues: DashboardWidgetColorValues?
+): String {
+    if (value == null || !value.isFinite()) return "gray"
+    return if (mode.trim().lowercase() == "bit") {
+        val rawValue = value.toLong()
+        val bit = (bitSelection ?: 0).coerceAtLeast(0)
+        val current = ((rawValue shr bit) and 1L).toInt()
+        if (current == 1) "green" else "red"
+    } else {
+        val green = colorValues?.green
+        val red = colorValues?.red
+        val yellow = colorValues?.yellow
+        when {
+            green != null && value == green -> "green"
+            red != null && value == red -> "red"
+            yellow != null && value == yellow -> "yellow"
+            else -> "gray"
+        }
+    }
+}
