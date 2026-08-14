@@ -5,10 +5,12 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
@@ -27,13 +29,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,12 +52,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -109,9 +117,10 @@ private enum class ReportTypeCardKind {
 @Composable
 fun ReportsRoute(
     viewModel: ReportsViewModel = hiltViewModel(),
-    navController: NavHostController
+    navController: NavHostController,
+    onFilterScreenVisibilityChanged: (Boolean) -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     ReportsScreen(
         uiState = uiState,
@@ -119,6 +128,10 @@ fun ReportsRoute(
         onOemSelected = viewModel::onOemSelected,
         onCustomerSelected = viewModel::onCustomerSelected,
         onDeviceSelected = viewModel::onDeviceSelected,
+        onFilterEditStarted = viewModel::beginFilterEditing,
+        onFilterApplied = viewModel::applyFilterEditing,
+        onFilterCancelled = viewModel::cancelFilterEditing,
+        onFilterScreenVisibilityChanged = onFilterScreenVisibilityChanged,
         onSummaryReportClick = viewModel::onSummaryReportClick,
         onDismissSummaryDialog = viewModel::dismissSummaryDialog,
         onDismissSummaryMessage = viewModel::dismissSummaryMessage,
@@ -173,6 +186,10 @@ private fun ReportsScreen(
     onOemSelected: (Oem?) -> Unit,
     onCustomerSelected: (Customer?) -> Unit,
     onDeviceSelected: (Device?) -> Unit,
+    onFilterEditStarted: () -> Unit,
+    onFilterApplied: () -> Unit,
+    onFilterCancelled: () -> Unit,
+    onFilterScreenVisibilityChanged: (Boolean) -> Unit,
     onSummaryReportClick: () -> Unit,
     onDismissSummaryDialog: () -> Unit,
     onDismissSummaryMessage: () -> Unit,
@@ -219,7 +236,34 @@ private fun ReportsScreen(
     onPageChange: (Int) -> Unit
 ) {
     var selectedFields by remember { mutableStateOf<List<String>?>(null) }
+    var showFilterScreen by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    LaunchedEffect(showFilterScreen) {
+        onFilterScreenVisibilityChanged(showFilterScreen)
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { onFilterScreenVisibilityChanged(false) }
+    }
+
+    if (showFilterScreen) {
+        ReportsFilterScreen(
+            uiState = uiState,
+            onIndustrySelected = onIndustrySelected,
+            onOemSelected = onOemSelected,
+            onCustomerSelected = onCustomerSelected,
+            onDeviceSelected = onDeviceSelected,
+            onCancel = {
+                onFilterCancelled()
+                showFilterScreen = false
+            },
+            onApply = {
+                onFilterApplied()
+                showFilterScreen = false
+            }
+        )
+        return
+    }
 
     val reportCards = remember {
         listOf(
@@ -296,13 +340,24 @@ private fun ReportsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                ReportsFilterSection(
-                    uiState = uiState,
-                    onIndustrySelected = onIndustrySelected,
-                    onOemSelected = onOemSelected,
-                    onCustomerSelected = onCustomerSelected,
-                    onDeviceSelected = onDeviceSelected
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            onFilterEditStarted()
+                            showFilterScreen = true
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Filter")
+                    }
+                }
             }
 
             item {
@@ -522,6 +577,91 @@ private fun ReportsTopToast(
                     )
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReportsFilterScreen(
+    uiState: ReportsUiState,
+    onIndustrySelected: (Industry?) -> Unit,
+    onOemSelected: (Oem?) -> Unit,
+    onCustomerSelected: (Customer?) -> Unit,
+    onDeviceSelected: (Device?) -> Unit,
+    onCancel: () -> Unit,
+    onApply: () -> Unit
+) {
+    BackHandler(onBack = onCancel)
+
+    Scaffold(
+        containerColor = LightGrayBg,
+        topBar = {
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onCancel) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back to reports"
+                        )
+                    }
+                    Text(
+                        text = "Report Filters",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            }
+        },
+        bottomBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    onClick = onCancel,
+                    colors = ButtonDefaults.textButtonColors(
+                        containerColor = Color.Transparent
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = onApply,
+                    enabled = !uiState.isLoading && uiState.selectedDevice != null,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = NavyBlue,
+                        contentColor = White
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Apply")
+                }
+            }
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(LightGrayBg)
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            ReportsFilterSection(
+                uiState = uiState,
+                onIndustrySelected = onIndustrySelected,
+                onOemSelected = onOemSelected,
+                onCustomerSelected = onCustomerSelected,
+                onDeviceSelected = onDeviceSelected
+            )
         }
     }
 }

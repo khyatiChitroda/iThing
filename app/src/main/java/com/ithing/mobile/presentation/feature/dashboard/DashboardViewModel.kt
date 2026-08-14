@@ -3,6 +3,7 @@ package com.ithing.mobile.presentation.feature.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto
+import com.ithing.mobile.core.session.DashboardFilterIds
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
@@ -10,7 +11,9 @@ import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.usecase.LogoutUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,12 +21,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import java.time.LocalDate
 import java.time.ZoneId
 
-private const val DASHBOARD_CHART_HOURLY_LOG_LIMIT = 10
-private const val ONE_HOUR_MILLIS = 60 * 60 * 1000L
+private const val DASHBOARD_CHART_LOG_LIMIT = 2_000
+private const val ONE_HOUR_MS = 60 * 60 * 1_000L
 
 data class DashboardUiState(
     val industries: List<Industry> = emptyList(),
@@ -50,9 +54,15 @@ class DashboardViewModel @Inject constructor(
     private val sessionManager: com.ithing.mobile.core.session.SessionManager
 ) : ViewModel() {
     private var autoRefreshJob: Job? = null
+    private var dashboardRefreshJob: Job? = null
+    private var dashboardRefreshGeneration: Long = 0L
     private var cachedWidgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget> = emptyList()
     private var cachedMapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto? = null
-    private var cachedChartLogs: List<DashboardEventLogDto> = emptyList()
+    private var cachedChartLogs: List<com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto> = emptyList()
+    private var lastFullRefreshAt: Long = 0L
+    private var lastConfigurationRefreshAt: Long = 0L
+    private var filterEditSnapshot: FilterEditSnapshot? = null
+    private var restoredFilterIds: DashboardFilterIds? = null
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
@@ -79,6 +89,7 @@ class DashboardViewModel @Inject constructor(
                     isLoading = true
                 )
             }
+            persistDashboardFilters()
             loadOems(industry?.name, autoSelectChildren = autoSelectChildren)
         }
     }
@@ -100,6 +111,7 @@ class DashboardViewModel @Inject constructor(
                     isLoading = true
                 )
             }
+            persistDashboardFilters()
             loadCustomers(oem?.id, autoSelectChildren = autoSelectChildren)
         }
     }
@@ -119,11 +131,14 @@ class DashboardViewModel @Inject constructor(
                     isLoading = true
                 )
             }
+            persistDashboardFilters()
             loadDevices(customer?.id, autoSelectChildren = autoSelectChildren)
         }
     }
 
     fun onDeviceSelected(device: Device?) {
+        dashboardRefreshJob?.cancel()
+        dashboardRefreshJob = null
         _uiState.update {
             it.copy(
                 selectedDevice = device,
@@ -137,9 +152,15 @@ class DashboardViewModel @Inject constructor(
         cachedWidgetsConfig = emptyList()
         cachedMapping = null
         cachedChartLogs = emptyList()
+        persistDashboardFilters()
 
         val customerSelected = _uiState.value.selectedCustomer != null
-        if (device != null && customerSelected && !_uiState.value.isRefreshing) {
+        if (
+            filterEditSnapshot == null &&
+            device != null &&
+            customerSelected &&
+            !_uiState.value.isRefreshing
+        ) {
             refreshDashboard()
         }
     }
@@ -148,36 +169,105 @@ class DashboardViewModel @Inject constructor(
         _uiState.update { it.copy(selectedGroup = group) }
     }
 
+    fun beginFilterEditing() {
+        if (filterEditSnapshot != null) return
+        stopAutoRefresh()
+        dashboardRefreshJob?.cancel()
+        dashboardRefreshJob = null
+        val pausedState = _uiState.value.copy(isRefreshing = false)
+        filterEditSnapshot = FilterEditSnapshot(
+            uiState = pausedState,
+            widgetsConfig = cachedWidgetsConfig,
+            mapping = cachedMapping,
+            chartLogs = cachedChartLogs
+        )
+        _uiState.value = pausedState
+    }
+
+    fun applyFilterEditing() {
+        filterEditSnapshot = null
+        val currentState = _uiState.value
+        if (
+            currentState.selectedCustomer != null &&
+            currentState.selectedDevice != null
+        ) {
+            cachedWidgetsConfig = emptyList()
+            cachedMapping = null
+            cachedChartLogs = emptyList()
+            _uiState.update {
+                it.copy(
+                    widgets = emptyList(),
+                    availableGroups = listOf("All"),
+                    selectedGroup = "All",
+                    lastUpdatedAt = null,
+                    isRefreshing = true,
+                    errorMessage = null
+                )
+            }
+            refreshDashboard()
+        }
+        startAutoRefresh()
+    }
+
+    fun cancelFilterEditing() {
+        val snapshot = filterEditSnapshot ?: return
+        dashboardRefreshJob?.cancel()
+        cachedWidgetsConfig = snapshot.widgetsConfig
+        cachedMapping = snapshot.mapping
+        cachedChartLogs = snapshot.chartLogs
+        _uiState.value = snapshot.uiState.copy(isRefreshing = false)
+        filterEditSnapshot = null
+        startAutoRefresh()
+    }
+
     fun refreshDashboard() {
-        viewModelScope.launch {
+        if (dashboardRefreshJob?.isActive == true) return
+        val refreshGeneration = ++dashboardRefreshGeneration
+        dashboardRefreshJob = viewModelScope.launch {
             val customerId = _uiState.value.selectedCustomer?.id
             val deviceId = _uiState.value.selectedDevice?.id
             if (customerId != null && deviceId != null) {
                 _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
 
-                runCatching {
-                    val widgetsConfig = dashboardRepository.getDashboardWidgets(customerId, deviceId).getOrThrow()
-                    cachedWidgetsConfig = widgetsConfig
+                try {
+                    val telemetry = withTimeout(DASHBOARD_REFRESH_TIMEOUT_MS) {
+                        val now = System.currentTimeMillis()
+                        val shouldReloadConfiguration =
+                            cachedWidgetsConfig.isEmpty() ||
+                                cachedMapping == null ||
+                                now - lastConfigurationRefreshAt >= CONFIGURATION_REFRESH_INTERVAL_MS
 
-                    val mapping = dashboardRepository.getDeviceMapping(deviceId).getOrThrow()
-                    cachedMapping = mapping
+                        val widgetsConfig = if (shouldReloadConfiguration) {
+                            dashboardRepository.getDashboardWidgets(customerId, deviceId).getOrThrow()
+                        } else {
+                            cachedWidgetsConfig
+                        }
+                        cachedWidgetsConfig = widgetsConfig
 
-                    cachedChartLogs = fetchHourlyChartLogs(deviceId)
+                        val mapping = if (shouldReloadConfiguration) {
+                            dashboardRepository.getDeviceMapping(deviceId).getOrThrow()
+                        } else {
+                            requireNotNull(cachedMapping)
+                        }
+                        cachedMapping = mapping
+                        if (shouldReloadConfiguration) lastConfigurationRefreshAt = now
 
-                    val latestLogs = dashboardRepository.getLatestEvents(
-                        deviceId = deviceId,
-                        lastTimeStamp = System.currentTimeMillis()
-                    ).getOrDefault(emptyList())
+                        cachedChartLogs = fetchChartLogs(deviceId)
 
-                    val telemetry = dashboardRepository.applyDashboardTelemetry(
-                        widgets = widgetsConfig,
-                        mappingPayload = mapping,
-                        latestLogs = latestLogs,
-                        chartLogs = cachedChartLogs
-                    ).getOrThrow()
+                        val latestLogs = dashboardRepository.getLatestEvents(
+                            deviceId = deviceId,
+                            lastTimeStamp = System.currentTimeMillis()
+                        ).getOrDefault(emptyList())
 
-                    telemetry
-                }.onSuccess { telemetry ->
+                        val refreshedTelemetry = dashboardRepository.applyDashboardTelemetry(
+                            widgets = widgetsConfig,
+                            mappingPayload = mapping,
+                            latestLogs = latestLogs,
+                            chartLogs = cachedChartLogs
+                        ).getOrThrow()
+
+                        refreshedTelemetry
+                    }
                     val groups = listOf("All") + telemetry.widgets.mapNotNull { it.dashboardName }
                         .distinct()
                         .sorted()
@@ -190,16 +280,25 @@ class DashboardViewModel @Inject constructor(
                             availableGroups = groups,
                             selectedGroup = selectedGroup,
                             lastUpdatedAt = telemetry.lastUpdatedAt,
-                            isRefreshing = false,
                             errorMessage = null
                         )
                     }
-                }.onFailure { ex ->
+                    lastFullRefreshAt = System.currentTimeMillis()
+                } catch (ex: TimeoutCancellationException) {
                     _uiState.update {
                         it.copy(
-                            isRefreshing = false,
-                            errorMessage = ex.message ?: "Failed to load widgets"
+                            errorMessage = "Dashboard refresh timed out. Please try again."
                         )
+                    }
+                } catch (ex: CancellationException) {
+                    throw ex
+                } catch (ex: Exception) {
+                    _uiState.update {
+                        it.copy(errorMessage = ex.message ?: "Failed to load widgets")
+                    }
+                } finally {
+                    if (refreshGeneration == dashboardRefreshGeneration) {
+                        _uiState.update { it.copy(isRefreshing = false) }
                     }
                 }
             } else {
@@ -209,6 +308,7 @@ class DashboardViewModel @Inject constructor(
                         availableGroups = listOf("All"),
                         selectedGroup = "All",
                         lastUpdatedAt = null,
+                        isRefreshing = false,
                         errorMessage = "Select a customer and device to load widgets"
                     )
                 }
@@ -218,8 +318,17 @@ class DashboardViewModel @Inject constructor(
 
     fun startAutoRefresh(intervalMs: Long = 10_000L) {
         stopAutoRefresh()
+        val currentState = _uiState.value
+        val needsInitialLoad =
+            currentState.selectedCustomer != null &&
+                currentState.selectedDevice != null &&
+                (cachedWidgetsConfig.isEmpty() || cachedMapping == null)
+        if (needsInitialLoad && dashboardRefreshJob?.isActive != true) {
+            refreshDashboard()
+        }
         autoRefreshJob = viewModelScope.launch {
             while (isActive) {
+                delay(intervalMs)
                 val deviceId = _uiState.value.selectedDevice?.id
                 val mapping = cachedMapping
                 val widgetsConfig = cachedWidgetsConfig
@@ -230,15 +339,18 @@ class DashboardViewModel @Inject constructor(
                         _uiState.value.selectedCustomer != null &&
                         !_uiState.value.isRefreshing
 
-                if (canRefresh) {
+                val fullRefreshIsDue =
+                    lastFullRefreshAt > 0L &&
+                        System.currentTimeMillis() - lastFullRefreshAt >= FULL_REFRESH_INTERVAL_MS
+                if (canRefresh && fullRefreshIsDue) {
+                    refreshDashboard()
+                } else if (canRefresh) {
                     refreshTelemetryOnly(
                         deviceId = deviceId!!,
                         mapping = mapping,
-                        widgetsConfig = widgetsConfig,
-                        chartLogs = cachedChartLogs
+                        widgetsConfig = widgetsConfig
                     )
                 }
-                delay(intervalMs)
             }
         }
     }
@@ -248,11 +360,19 @@ class DashboardViewModel @Inject constructor(
         autoRefreshJob = null
     }
 
+    fun stopDashboardWork() {
+        stopAutoRefresh()
+        dashboardRefreshJob?.cancel()
+        dashboardRefreshJob = null
+        _uiState.update { state ->
+            if (state.isRefreshing) state.copy(isRefreshing = false) else state
+        }
+    }
+
     private suspend fun refreshTelemetryOnly(
         deviceId: String,
         mapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto,
-        widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>,
-        chartLogs: List<DashboardEventLogDto>
+        widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>
     ) {
         val latestLogs = dashboardRepository.getLatestEvents(
             deviceId = deviceId,
@@ -263,11 +383,23 @@ class DashboardViewModel @Inject constructor(
             widgets = widgetsConfig,
             mappingPayload = mapping,
             latestLogs = latestLogs,
-            chartLogs = chartLogs
+            chartLogs = emptyList()
         ).onSuccess { telemetry ->
+            val currentWidgetsById = _uiState.value.widgets.associateBy { it.id }
+            val widgetsForDisplay = telemetry.widgets.map { refreshedWidget ->
+                val currentWidget = currentWidgetsById[refreshedWidget.id]
+                when {
+                    refreshedWidget.type.equals("charts", ignoreCase = true) ->
+                        currentWidget ?: refreshedWidget
+                    currentWidget != null &&
+                        currentWidget.valuesByField == refreshedWidget.valuesByField &&
+                        currentWidget.currentValue == refreshedWidget.currentValue -> currentWidget
+                    else -> refreshedWidget
+                }
+            }
             _uiState.update {
                 it.copy(
-                    widgets = telemetry.widgets,
+                    widgets = widgetsForDisplay,
                     lastUpdatedAt = telemetry.lastUpdatedAt,
                     errorMessage = null
                 )
@@ -275,40 +407,45 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private suspend fun fetchHourlyChartLogs(deviceId: String): List<DashboardEventLogDto> {
-        val startTime = startOfDayMillis()
-        val endTime = System.currentTimeMillis()
-        val result = mutableListOf<DashboardEventLogDto>()
-
-        var currentSlot = startTime
-        while (currentSlot < endTime) {
-            val batch = dashboardRepository.getLogsAfter(
+    private suspend fun fetchChartLogs(deviceId: String): List<DashboardEventLogDto> {
+        val newLogs = if (cachedChartLogs.isEmpty()) {
+            fetchHourlyChartLogs(deviceId)
+        } else {
+            dashboardRepository.getLogsAfter(
                 deviceId = deviceId,
-                timestamp = currentSlot,
-                limit = DASHBOARD_CHART_HOURLY_LOG_LIMIT
+                timestamp = cachedChartLogs.last().timeStamp + 1L,
+                limit = DASHBOARD_CHART_LOG_LIMIT
             ).getOrDefault(emptyList())
-
-            println(
-                "DashboardViewModel: chart hourly fetch " +
-                    "timestamp=$currentSlot count=${batch.size}"
-            )
-
-            result += batch
-            currentSlot += ONE_HOUR_MILLIS
         }
 
-        val sortedLogs = result
+        return (cachedChartLogs + newLogs)
+            .filter { it.timeStamp >= startOfDayMillis() }
             .distinctBy { it.timeStamp to it.data }
             .sortedBy { it.timeStamp }
+    }
 
-        println(
-            "DashboardViewModel: chart hourly result " +
-                "count=${sortedLogs.size} " +
-                "first=${sortedLogs.firstOrNull()?.timeStamp} " +
-                "last=${sortedLogs.lastOrNull()?.timeStamp}"
-        )
+    private suspend fun fetchHourlyChartLogs(deviceId: String): List<DashboardEventLogDto> {
+        val start = startOfDayMillis()
+        val firstBatch = dashboardRepository.getLogsAfter(
+            deviceId = deviceId,
+            timestamp = start,
+            limit = DASHBOARD_CHART_LOG_LIMIT
+        ).getOrDefault(emptyList())
+        val firstTimestamp = firstBatch.firstOrNull()?.timeStamp ?: return emptyList()
+        val end = System.currentTimeMillis()
+        var slot = firstTimestamp - (firstTimestamp % ONE_HOUR_MS) + (ONE_HOUR_MS / 2L)
+        val hourlyLogs = mutableListOf<DashboardEventLogDto>()
 
-        return sortedLogs
+        while (slot < end) {
+            val hourlyBatch = dashboardRepository.getLogsAfter(
+                deviceId = deviceId,
+                timestamp = slot,
+                limit = DASHBOARD_CHART_LOG_LIMIT
+            ).getOrDefault(emptyList())
+            hourlyLogs.addAll(hourlyBatch)
+            slot += ONE_HOUR_MS
+        }
+        return hourlyLogs
     }
 
     private fun startOfDayMillis(): Long =
@@ -341,6 +478,7 @@ class DashboardViewModel @Inject constructor(
                 return@launch
             }
 
+            restoredFilterIds = sessionManager.getDashboardFilters()
             dashboardRepository.getIndustries()
                 .onSuccess { industries ->
                     _uiState.update {
@@ -354,7 +492,9 @@ class DashboardViewModel @Inject constructor(
                         )
                     }
                     if (_uiState.value.selectedIndustry == null && industries.isNotEmpty()) {
-                        onIndustrySelected(industries.first(), autoSelectChildren = true)
+                        val selected = industries.firstOrNull { it.id == restoredFilterIds?.industryId }
+                            ?: industries.first()
+                        onIndustrySelected(selected, autoSelectChildren = true)
                     }
                 }
                 .onFailure { error ->
@@ -386,7 +526,8 @@ class DashboardViewModel @Inject constructor(
                     )
                 }
                 if (autoSelectChildren && _uiState.value.selectedOem == null && oems.isNotEmpty()) {
-                    onOemSelected(oems.first(), autoSelectChildren = true)
+                    val selected = oems.firstOrNull { it.id == restoredFilterIds?.oemId } ?: oems.first()
+                    onOemSelected(selected, autoSelectChildren = true)
                 }
             }
             .onFailure { error ->
@@ -419,7 +560,9 @@ class DashboardViewModel @Inject constructor(
                     )
                 }
                 if (autoSelectChildren && _uiState.value.selectedCustomer == null && customers.isNotEmpty()) {
-                    onCustomerSelected(customers.first(), autoSelectChildren = true)
+                    val selected = customers.firstOrNull { it.id == restoredFilterIds?.customerId }
+                        ?: customers.first()
+                    onCustomerSelected(selected, autoSelectChildren = true)
                 }
             }
             .onFailure { error ->
@@ -450,7 +593,10 @@ class DashboardViewModel @Inject constructor(
                     )
                 }
                 if (autoSelectChildren && _uiState.value.selectedDevice == null && devices.isNotEmpty()) {
-                    onDeviceSelected(devices.first())
+                    val selected = devices.firstOrNull { it.id == restoredFilterIds?.deviceId }
+                        ?: devices.first()
+                    onDeviceSelected(selected)
+                    restoredFilterIds = null
                 }
             }
             .onFailure { error ->
@@ -463,4 +609,30 @@ class DashboardViewModel @Inject constructor(
                 }
             }
     }
+
+    private fun persistDashboardFilters() {
+        if (restoredFilterIds != null) return
+        val state = _uiState.value
+        viewModelScope.launch {
+            sessionManager.saveDashboardFilters(
+                industryId = state.selectedIndustry?.id,
+                oemId = state.selectedOem?.id,
+                customerId = state.selectedCustomer?.id,
+                deviceId = state.selectedDevice?.id
+            )
+        }
+    }
+
+    private companion object {
+        const val DASHBOARD_REFRESH_TIMEOUT_MS = 90_000L
+        const val FULL_REFRESH_INTERVAL_MS = 5 * 60_000L
+        const val CONFIGURATION_REFRESH_INTERVAL_MS = 5 * 60_000L
+    }
+
+    private data class FilterEditSnapshot(
+        val uiState: DashboardUiState,
+        val widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>,
+        val mapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto?,
+        val chartLogs: List<com.ithing.mobile.data.remote.dto.dashboard.DashboardEventLogDto>
+    )
 }

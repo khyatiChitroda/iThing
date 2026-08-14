@@ -11,11 +11,18 @@ data class DashboardWidgetSource(
     val bgColor: String? = null,
     val valueInputMode: String? = null,
     val bitSelection: Int? = null,
-    val colorValues: DashboardWidgetColorValues? = null
+    val colorValues: DashboardWidgetColorValues? = null,
+    val heatMapLegend: List<DashboardHeatMapLegendItem> = emptyList()
 ) {
     val field: String
         get() = fields.firstOrNull().orEmpty()
 }
+
+data class DashboardHeatMapLegendItem(
+    val label: String,
+    val value: Double,
+    val color: Long
+)
 
 data class DashboardWidgetColorValues(
     val green: Double? = null,

@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -31,6 +35,7 @@ fun AppShell(
     val sessionManager = viewModel.sessionManager
     val innerNavController = rememberNavController()
     val scope = rememberCoroutineScope()
+    var isFilterScreenVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(sessionManager) {
         sessionManager.sessionExpiredEvents.collect {
@@ -73,7 +78,9 @@ fun AppShell(
             )
         },
         bottomBar = {
-            BottomNavBar(innerNavController)
+            if (!isFilterScreenVisible) {
+                BottomNavBar(innerNavController)
+            }
         }
     ) { modifier ->
 
@@ -89,14 +96,16 @@ fun AppShell(
             composable("dashboard") {
                 DashboardRoute(
                     viewModel = hiltViewModel(),
-                    navController = navController
+                    navController = navController,
+                    onFilterScreenVisibilityChanged = { isFilterScreenVisible = it }
                 )
             }
 
             composable("reports") {
                 ReportsRoute(
                     viewModel = hiltViewModel(),
-                    navController = navController
+                    navController = navController,
+                    onFilterScreenVisibilityChanged = { isFilterScreenVisible = it }
                 )
             }
         }

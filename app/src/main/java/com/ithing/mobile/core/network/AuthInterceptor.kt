@@ -21,21 +21,11 @@ class AuthInterceptor @Inject constructor(
 
         if (!token.isNullOrBlank()) {
             requestBuilder.header("Authorization", token)
-            println(
-                "AuthInterceptor: Sending ${originalRequest.method} ${originalRequest.url.encodedPath} with token=${token.take(16)}..."
-            )
-        } else {
-            println(
-                "AuthInterceptor: Sending ${originalRequest.method} ${originalRequest.url.encodedPath} without auth token"
-            )
         }
 
         val response = chain.proceed(requestBuilder.build())
 
         if (response.code == 401 && !token.isNullOrBlank()) {
-            println(
-                "AuthInterceptor: 401 from ${originalRequest.url.encodedPath}; authHeaderPresent=${!token.isNullOrBlank()}"
-            )
             runBlocking {
                 sessionManager.expireSession()
             }

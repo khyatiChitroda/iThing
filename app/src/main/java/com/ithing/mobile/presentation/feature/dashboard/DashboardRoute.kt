@@ -8,9 +8,11 @@ import com.ithing.mobile.presentation.navigation.AppDestination
 @Composable
 fun DashboardRoute(
     viewModel: DashboardViewModel = hiltViewModel(),
-    navController: NavController
+    navController: NavController,
+    onFilterScreenVisibilityChanged: (Boolean) -> Unit
 ) {
     DashboardScreen(
-        viewModel = viewModel
+        viewModel = viewModel,
+        onFilterScreenVisibilityChanged = onFilterScreenVisibilityChanged
     )
 }

@@ -23,6 +23,10 @@ class SessionManager @Inject constructor(
         private val ROLE_KEY = stringPreferencesKey("user_role")
         private val USER_ID_KEY = stringPreferencesKey("user_id")
         private val OEM_LOGO_KEY = stringPreferencesKey("oem_logo")
+        private val DASHBOARD_INDUSTRY_KEY = stringPreferencesKey("dashboard_industry")
+        private val DASHBOARD_OEM_KEY = stringPreferencesKey("dashboard_oem")
+        private val DASHBOARD_CUSTOMER_KEY = stringPreferencesKey("dashboard_customer")
+        private val DASHBOARD_DEVICE_KEY = stringPreferencesKey("dashboard_device")
     }
 
     @Volatile
@@ -46,7 +50,6 @@ class SessionManager @Inject constructor(
     suspend fun saveToken(token: String) {
         val normalizedToken = token.trim()
         cachedToken = normalizedToken
-        println("SessionManager: saveToken token=${normalizedToken.take(16)}... length=${normalizedToken.length}")
         dataStore.edit { preferences ->
             preferences[TOKEN_KEY] = normalizedToken
         }
@@ -58,7 +61,6 @@ class SessionManager @Inject constructor(
                 expireSession()
                 return null
             }
-            println("SessionManager: getToken cache hit token=${it.take(16)}... length=${it.length}")
             return it
         }
 
@@ -71,7 +73,6 @@ class SessionManager @Inject constructor(
                     expireSession()
                     return null
                 }
-                println("SessionManager: getToken datastore hit token=${it.take(16)}... length=${it.length}")
             }
     }
 
@@ -156,6 +157,38 @@ class SessionManager @Inject constructor(
         return dataStore.data.map { it[TOKEN_KEY] }
     }
 
+    suspend fun saveDashboardFilters(
+        industryId: String?,
+        oemId: String?,
+        customerId: String?,
+        deviceId: String?
+    ) {
+        dataStore.edit { preferences ->
+            preferences.setOrRemove(DASHBOARD_INDUSTRY_KEY, industryId)
+            preferences.setOrRemove(DASHBOARD_OEM_KEY, oemId)
+            preferences.setOrRemove(DASHBOARD_CUSTOMER_KEY, customerId)
+            preferences.setOrRemove(DASHBOARD_DEVICE_KEY, deviceId)
+        }
+    }
+
+    suspend fun getDashboardFilters(): DashboardFilterIds = dataStore.data
+        .map { preferences ->
+            DashboardFilterIds(
+                industryId = preferences[DASHBOARD_INDUSTRY_KEY],
+                oemId = preferences[DASHBOARD_OEM_KEY],
+                customerId = preferences[DASHBOARD_CUSTOMER_KEY],
+                deviceId = preferences[DASHBOARD_DEVICE_KEY]
+            )
+        }
+        .firstOrNull() ?: DashboardFilterIds()
+
+    private fun androidx.datastore.preferences.core.MutablePreferences.setOrRemove(
+        key: androidx.datastore.preferences.core.Preferences.Key<String>,
+        value: String?
+    ) {
+        if (value.isNullOrBlank()) remove(key) else this[key] = value
+    }
+
     suspend fun clearSession() {
         println("SessionManager: clearSession")
         cachedToken = null
@@ -178,3 +211,10 @@ class SessionManager @Inject constructor(
         _sessionExpiredEvents.emit(Unit)
     }
 }
+
+data class DashboardFilterIds(
+    val industryId: String? = null,
+    val oemId: String? = null,
+    val customerId: String? = null,
+    val deviceId: String? = null
+)

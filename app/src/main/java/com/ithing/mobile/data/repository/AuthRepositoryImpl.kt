@@ -49,9 +49,6 @@ class AuthRepositoryImpl @Inject constructor(
             sessionManager.saveTokenExpiry(expiryMillis)
         }
         sessionManager.saveToken(response.data.token)
-        println(
-            "AuthRepository: Login succeeded for $username; saved token=${response.data.token.take(16)}..."
-        )
     }
 
     override suspend fun logout() {

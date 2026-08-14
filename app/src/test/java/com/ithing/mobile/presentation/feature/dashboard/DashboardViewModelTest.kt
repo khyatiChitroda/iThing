@@ -15,11 +15,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -66,6 +69,9 @@ class DashboardViewModelTest {
         assertEquals("OEM Food", state.selectedOem?.name)
         assertEquals("Customer A", state.selectedCustomer?.name)
         assertEquals("Device 1", state.selectedDevice?.name)
+        assertEquals(1, dashboardRepository.dashboardWidgetRequestCount)
+        assertEquals(1, dashboardRepository.deviceMappingRequestCount)
+        assertEquals(1, dashboardRepository.chartLogRequests.size)
     }
 
     @Test
@@ -132,9 +138,8 @@ class DashboardViewModelTest {
         var state = viewModel.uiState.value
         assertEquals(listOf("Device 3"), state.devices.map { it.name })
 
+        dashboardRepository.chartLogRequests.clear()
         viewModel.onDeviceSelected(state.devices.first())
-
-        viewModel.refreshDashboard()
         advanceUntilIdle()
 
         state = viewModel.uiState.value
@@ -142,7 +147,8 @@ class DashboardViewModelTest {
         assertEquals("customer-b", dashboardRepository.lastRequestedCustomerId)
         assertEquals("device-c", dashboardRepository.lastRequestedDeviceId)
         assertTrue(dashboardRepository.chartLogRequests.isNotEmpty())
-        assertTrue(dashboardRepository.chartLogRequests.all { it.limit == 10 })
+        assertEquals(1, dashboardRepository.chartLogRequests.size)
+        assertTrue(dashboardRepository.chartLogRequests.all { it.limit == 2_000 })
     }
 
     @Test
@@ -162,12 +168,39 @@ class DashboardViewModelTest {
 
         assertTrue(viewModel.uiState.value.widgets.isEmpty())
         assertEquals("Select a customer and device to load widgets", viewModel.uiState.value.errorMessage)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    fun `auto refresh does not repeat full api chain after initial failure`() = runTest {
+        dashboardRepository.telemetryError = IllegalStateException("Telemetry unavailable")
+        val viewModel = DashboardViewModel(
+            logoutUseCase = logoutUseCase,
+            dashboardRepository = dashboardRepository,
+            sessionManager = sessionManager
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, dashboardRepository.dashboardWidgetRequestCount)
+        assertEquals(1, dashboardRepository.deviceMappingRequestCount)
+
+        viewModel.startAutoRefresh(intervalMs = 1_000L)
+        advanceTimeBy(3_500L)
+        runCurrent()
+        viewModel.stopAutoRefresh()
+
+        assertEquals(1, dashboardRepository.dashboardWidgetRequestCount)
+        assertEquals(1, dashboardRepository.deviceMappingRequestCount)
+        assertEquals(1, dashboardRepository.chartLogRequests.size)
     }
 
     private class FakeDashboardRepository : DashboardRepository {
 
         var lastRequestedCustomerId: String? = null
         var lastRequestedDeviceId: String? = null
+        var dashboardWidgetRequestCount: Int = 0
+        var deviceMappingRequestCount: Int = 0
+        var telemetryError: Throwable? = null
         val chartLogRequests = mutableListOf<ChartLogRequest>()
 
         private val fakeIndustries = listOf(
@@ -235,7 +268,7 @@ class DashboardViewModelTest {
             customerId: String,
             deviceId: String
         ): Result<List<DashboardWidget>> {
-
+            dashboardWidgetRequestCount++
             lastRequestedCustomerId = customerId
             lastRequestedDeviceId = deviceId
 
@@ -243,6 +276,7 @@ class DashboardViewModelTest {
         }
 
         override suspend fun getDeviceMapping(deviceId: String): Result<DeviceMappingPayloadDto> {
+            deviceMappingRequestCount++
             return Result.success(DeviceMappingPayloadDto())
         }
 
@@ -272,7 +306,8 @@ class DashboardViewModelTest {
             latestLogs: List<DashboardEventLogDto>,
             chartLogs: List<DashboardEventLogDto>
         ): Result<DashboardTelemetryResult> {
-            return Result.success(DashboardTelemetryResult(widgets = widgets))
+            return telemetryError?.let(Result.Companion::failure)
+                ?: Result.success(DashboardTelemetryResult(widgets = widgets))
         }
 
         data class ChartLogRequest(
