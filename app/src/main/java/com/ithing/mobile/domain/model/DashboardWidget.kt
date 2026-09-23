@@ -12,10 +12,24 @@ data class DashboardWidgetSource(
     val valueInputMode: String? = null,
     val bitSelection: Int? = null,
     val colorValues: DashboardWidgetColorValues? = null,
-    val heatMapLegend: List<DashboardHeatMapLegendItem> = emptyList()
+    val heatMapLegend: List<DashboardHeatMapLegendItem> = emptyList(),
+    val statusTextValues: Map<String, String> = emptyMap()
 ) {
     val field: String
         get() = fields.firstOrNull().orEmpty()
+
+    fun statusTextFor(value: Double?): String? {
+        if (value == null || !value.isFinite()) return null
+        val lookupValue = if (valueInputMode == "bit") {
+            val bit = bitSelection?.takeIf { it in 0..63 } ?: return null
+            ((value.toLong() ushr bit) and 1L).toDouble()
+        } else {
+            value
+        }
+        return statusTextValues.entries.firstOrNull {
+            it.key.toDoubleOrNull() == lookupValue
+        }?.value?.takeIf { it.isNotBlank() }
+    }
 }
 
 data class DashboardHeatMapLegendItem(

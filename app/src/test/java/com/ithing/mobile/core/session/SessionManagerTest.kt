@@ -72,4 +72,24 @@ class SessionManagerTest {
 
         assertNull(storedToken)
     }
+
+    @Test
+    fun `clearSession should remove dashboard filters`() = runTest(testDispatcher) {
+        dataStore = PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { File.createTempFile("test", ".preferences_pb") }
+        )
+        sessionManager = SessionManager(dataStore)
+        sessionManager.saveDashboardFilters(
+            industryId = "industry",
+            oemId = "oem",
+            customerId = "customer",
+            deviceId = "device"
+        )
+
+        sessionManager.clearSession()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(DashboardFilterIds(), sessionManager.getDashboardFilters())
+    }
 }

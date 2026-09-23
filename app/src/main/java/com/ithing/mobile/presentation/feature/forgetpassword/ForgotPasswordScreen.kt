@@ -39,14 +39,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ithing.mobile.R
-import com.ithing.mobile.presentation.theme.DarkText
-import com.ithing.mobile.presentation.theme.MutedText
 import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.White
 
 private val ForgotCardShape = RoundedCornerShape(12.dp)
 private val ForgotFieldShape = RoundedCornerShape(8.dp)
-private val FieldBorder = Color(0xFFE4E9F2)
 private val LoginBackgroundEnd = Color(0xFF172554)
 private val WebFontFamily = FontFamily.SansSerif
 
@@ -83,7 +80,7 @@ fun ForgotPasswordScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ForgotCardShape,
-                colors = CardDefaults.cardColors(containerColor = White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
             ) {
                 Column(
@@ -96,7 +93,7 @@ fun ForgotPasswordScreen(
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontFamily = WebFontFamily,
                             fontWeight = FontWeight.Bold,
-                            color = NavyBlue,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 20.sp
                         )
                     )
@@ -108,7 +105,7 @@ fun ForgotPasswordScreen(
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = WebFontFamily,
-                            color = MutedText,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
                             lineHeight = 20.sp
@@ -136,15 +133,15 @@ fun ForgotPasswordScreen(
                                 )
                             },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = White,
-                                unfocusedContainerColor = White,
-                                errorContainerColor = White,
-                                focusedBorderColor = NavyBlue,
-                                unfocusedBorderColor = FieldBorder,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                errorContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                                 errorBorderColor = MaterialTheme.colorScheme.error,
-                                focusedTextColor = DarkText,
-                                unfocusedTextColor = DarkText,
-                                cursorColor = NavyBlue
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                cursorColor = MaterialTheme.colorScheme.primary
                             )
                         )
 

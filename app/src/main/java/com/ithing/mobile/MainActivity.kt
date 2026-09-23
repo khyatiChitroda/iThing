@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         splashScreen.setKeepOnScreenCondition { !isUiReady }
         enableEdgeToEdge()
         setContent {
-            IThingMobileTheme {
+            IThingMobileTheme(darkTheme = false) {
                 LaunchedEffect(Unit) {
                     withFrameNanos { }
                     delay(1000)

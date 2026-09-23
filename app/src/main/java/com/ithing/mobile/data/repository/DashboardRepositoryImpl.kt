@@ -232,7 +232,33 @@ class DashboardRepositoryImpl @Inject constructor(
             emptyList()
         }
         val chartLogsForRendering = collatedChartLogs.evenlySampled(MAX_RENDERED_CHART_POINTS)
+        val heatMapLogs by lazy {
+            // The web heat map uses individual records and the log timestamp, without collation.
+            chartLogs.map { log ->
+                ParsedDashboardLog(
+                    timestamp = log.timeStamp,
+                    label = log.timeStamp.toLabel(),
+                    values = parseEvent(log.data, mappingPayload).orEmpty()
+                        .filterValues { it.isFinite() }
+                )
+            }
+        }
+        // Match the web State Chart: keep the first chronological reading in each hour.
+        val hourlyChartLogs = collatedChartLogs.distinctBy { log ->
+            java.time.Instant.ofEpochMilli(log.timestamp)
+                .atZone(ZoneId.systemDefault())
+                .withMinute(0).withSecond(0).withNano(0)
+                .toInstant()
+        }
         val enriched = widgets.map { widget ->
+            val chartSubtype = widget.subType.orEmpty().trim().lowercase()
+                .replace("_", " ").replace("-", " ")
+            val isHeatMap = chartSubtype in setOf("heat map", "heatmap")
+            val widgetChartLogs = when {
+                isHeatMap -> heatMapLogs
+                chartSubtype in setOf("state", "state chart", "statechart") -> hourlyChartLogs
+                else -> chartLogsForRendering
+            }
             val allFields = widget.sources.flatMap { it.fields }
             val valuesByField = allFields
                 .distinct()
@@ -245,11 +271,14 @@ class DashboardRepositoryImpl @Inject constructor(
                 widget.sources
                     .flatMap { source -> source.fields }
                     .distinct()
+                    .let { fields -> if (isHeatMap) fields.take(1) else fields }
                     .map { field ->
                         DashboardWidgetSeries(
                             label = widget.unit?.takeIf { it.isNotBlank() }?.let { "$field ($it)" } ?: field,
-                            points = chartLogsForRendering.mapNotNull { log ->
-                                val value = log.valueForField(field) ?: return@mapNotNull null
+                            points = widgetChartLogs.mapNotNull { log ->
+                                // Match the web heat map's missing-value fallback before legend filtering.
+                                val value = log.valueForField(field)
+                                    ?: if (isHeatMap) 0.0 else return@mapNotNull null
                                 DashboardWidgetPoint(
                                     timestamp = log.timestamp,
                                     label = log.label,
@@ -350,7 +379,11 @@ class DashboardRepositoryImpl @Inject constructor(
             valueInputMode = valueInputMode,
             bitSelection = bitSelection,
             colorValues = colorValues,
-            heatMapLegend = heatMapLegend
+            heatMapLegend = heatMapLegend,
+            statusTextValues = (get("statusTextValues") as? JsonObject)
+                ?.mapNotNull { (value, text) ->
+                    (text as? JsonPrimitive)?.contentOrNull?.let { value to it }
+                }?.toMap().orEmpty()
         )
     }
 

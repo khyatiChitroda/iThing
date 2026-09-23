@@ -48,7 +48,6 @@ import com.ithing.mobile.presentation.components.IThingButton
 import com.ithing.mobile.presentation.components.IThingCard
 import com.ithing.mobile.presentation.components.IThingScreenContainer
 import com.ithing.mobile.presentation.components.LoadingIndicator
-import com.ithing.mobile.presentation.theme.LightGrayBg
 import com.ithing.mobile.presentation.theme.dashboardLayoutForWidth
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -169,7 +168,7 @@ private fun DashboardContent(
                     .widthIn(max = 1200.dp)
                     .fillMaxSize()
                     .align(Alignment.TopCenter)
-                    .background(LightGrayBg),
+                    .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(
                     start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
                     end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),
@@ -302,7 +301,7 @@ private fun DashboardActionsSection(
                 "Customer: ${selectedCustomerName ?: "-"}  •  " +
                 "Device ID: ${selectedDeviceId ?: "-"}",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF4B5563),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
@@ -310,7 +309,7 @@ private fun DashboardActionsSection(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(),
-            color = Color(0xFFE8EEF6),
+            color = MaterialTheme.colorScheme.surfaceVariant,
             shape = RoundedCornerShape(10.dp),
             shadowElevation = 1.dp
         ) {

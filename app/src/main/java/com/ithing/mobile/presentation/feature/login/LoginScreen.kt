@@ -38,13 +38,8 @@ import com.ithing.mobile.R
 import com.ithing.mobile.presentation.components.IThingPrimaryButton
 import com.ithing.mobile.presentation.components.IThingTextField
 import com.ithing.mobile.presentation.components.IThingCard
-import com.ithing.mobile.presentation.theme.DarkText
-import com.ithing.mobile.presentation.theme.MutedText
-import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.Slate400
 import com.ithing.mobile.presentation.theme.Slate600
-import com.ithing.mobile.presentation.theme.Theme1Blue
-import com.ithing.mobile.presentation.theme.Theme2Navy
 import com.ithing.mobile.presentation.theme.WebsiteBlue
 
 @Composable
@@ -119,7 +114,7 @@ fun LoginScreen(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next,
                         cornerRadius = 12.dp,
-                        textColor = DarkText,
+                        textColor = MaterialTheme.colorScheme.onSurface,
                         placeholderColor = Slate400
                     )
 
@@ -136,7 +131,7 @@ fun LoginScreen(
                         trailingIcon = if (uiState.isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                         onTrailingIconClick = onTogglePasswordVisibility,
                         cornerRadius = 12.dp,
-                        textColor = DarkText,
+                        textColor = MaterialTheme.colorScheme.onSurface,
                         placeholderColor = Slate400
                     )
 

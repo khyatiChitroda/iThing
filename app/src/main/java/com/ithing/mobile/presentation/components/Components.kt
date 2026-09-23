@@ -51,7 +51,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.ithing.mobile.presentation.theme.ScreenBackground
 
 @Composable
 fun IThingCard(
@@ -235,7 +234,7 @@ fun IThingTextField(
                 .fillMaxWidth()
                 .border(
                 width = 1.dp,
-                color = if (isError) Color.Red else Color(0xFFE2E8F0),
+                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(cornerRadius)
             ),
             enabled = enabled,
@@ -274,9 +273,9 @@ fun IThingTextField(
             },
             shape = RoundedCornerShape(cornerRadius),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                disabledContainerColor = Color.White,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 focusedTextColor = textColor,
                 unfocusedTextColor = textColor,
                 focusedPlaceholderColor = placeholderColor,
@@ -497,7 +496,7 @@ fun IThingScreenContainer(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ScreenBackground)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -531,7 +530,7 @@ fun IThingScreenContainerSimple(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ScreenBackground)
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 16.dp)
     ) {

@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ithing.mobile.presentation.feature.reports.analyticsReport.ScheduleDeliveryFrequency
-import com.ithing.mobile.presentation.theme.White
 
 @Composable
 fun ScheduleReportDialog(
@@ -74,7 +73,7 @@ fun ScheduleReportDialog(
                 .fillMaxWidth(0.96f)
                 .heightIn(max = 780.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column {
                 Row(
@@ -88,14 +87,14 @@ fun ScheduleReportDialog(
                         text = "Schedule Report",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF52637E)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = Color(0xFF6B7280)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -143,7 +142,7 @@ fun ScheduleReportDialog(
                         Text(
                             text = "Delivery Frequency",
                             style = MaterialTheme.typography.titleLarge,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         ScheduleFrequencyField(
@@ -164,13 +163,13 @@ fun ScheduleReportDialog(
                         Text(
                             text = "Choose Fields",
                             style = MaterialTheme.typography.titleLarge,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(
@@ -228,7 +227,7 @@ fun ScheduleReportDialog(
                                                     text = field,
                                                     modifier = Modifier.padding(top = 12.dp),
                                                     style = MaterialTheme.typography.bodyLarge,
-                                                    color = Color(0xFF53637D)
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }

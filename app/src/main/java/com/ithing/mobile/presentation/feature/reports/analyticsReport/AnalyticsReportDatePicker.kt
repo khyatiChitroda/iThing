@@ -49,8 +49,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.runtime.rememberCoroutineScope
 import com.ithing.mobile.presentation.theme.White
 import com.ithing.mobile.presentation.theme.NavyBlue
-import com.ithing.mobile.presentation.theme.MutedText
-import com.ithing.mobile.presentation.theme.BorderColor
 import com.kizitonwose.calendar.compose.HorizontalCalendar
 import com.kizitonwose.calendar.compose.rememberCalendarState
 import com.kizitonwose.calendar.core.CalendarDay
@@ -78,7 +76,7 @@ fun AnalyticsReportDatePickerDialog(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier.padding(18.dp),
@@ -88,7 +86,7 @@ fun AnalyticsReportDatePickerDialog(
                     text = "Select Time Span",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF52637E)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 AnalyticsDatePreset.values().forEach { preset ->
@@ -111,7 +109,7 @@ fun AnalyticsReportDatePickerDialog(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = Color(0xFF233A69)
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -126,7 +124,7 @@ fun AnalyticsReportDatePickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(Color(0xFFE4EBF4))
+                        .background(MaterialTheme.colorScheme.outlineVariant)
                 )
 
                 Button(
@@ -177,14 +175,14 @@ fun AnalyticsCustomDateRangeDialog(
         Card(
             modifier = Modifier.fillMaxWidth(0.94f),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
                 Text(
                     text = "Select dates",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = MutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 DividerLine()
                 Text(
@@ -303,7 +301,7 @@ private fun DividerLine() {
             .fillMaxWidth()
             .padding(vertical = 10.dp)
             .height(1.dp)
-            .background(BorderColor)
+            .background(MaterialTheme.colorScheme.outlineVariant)
     )
 }
 
@@ -386,7 +384,7 @@ private fun WeekDaysRow() {
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.titleSmall,
-                color = MutedText
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -410,14 +408,14 @@ private fun DayCell(
 
     val bg = when {
         !isInMonth -> Color.Transparent
-        isStart || isEnd -> NavyBlue
-        isInRange -> NavyBlue.copy(alpha = 0.18f)
+        isStart || isEnd -> MaterialTheme.colorScheme.primary
+        isInRange -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
         else -> Color.Transparent
     }
     val textColor = when {
-        !isInMonth -> MutedText.copy(alpha = 0.3f)
-        isStart || isEnd -> White
-        else -> NavyBlue
+        !isInMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+        isStart || isEnd -> MaterialTheme.colorScheme.onPrimary
+        else -> MaterialTheme.colorScheme.onSurface
     }
 
     Box(
@@ -455,7 +453,7 @@ private fun MonthYearPickerDialog(
         Card(
             modifier = Modifier.fillMaxWidth(0.94f),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),

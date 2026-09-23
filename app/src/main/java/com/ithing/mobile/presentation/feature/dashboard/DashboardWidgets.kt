@@ -79,7 +79,6 @@ import com.ithing.mobile.domain.model.DashboardWidgetColorValues
 import com.ithing.mobile.domain.model.DashboardHeatMapLegendItem
 import com.ithing.mobile.domain.model.DashboardWidgetPoint
 import com.ithing.mobile.domain.model.DashboardWidgetSeries
-import com.ithing.mobile.presentation.theme.LightGrayBg
 import com.ithing.mobile.presentation.theme.dashboardLayoutForWidth
 import kotlin.math.abs
 import kotlin.math.cos
@@ -154,7 +153,7 @@ private fun SeriesLegendFlow(
             Text(
                 text = item.label,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF66768C),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -340,7 +339,7 @@ fun LazyListScope.dashboardWidgetGridItems(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isWebStyleChart) Color.White else LightGrayBg
+                            containerColor = MaterialTheme.colorScheme.surface
                         ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                     ) {
@@ -549,7 +548,7 @@ private fun DashboardGaugeTile(widget: DashboardWidget) {
             .fillMaxWidth()
             .dashboardWidgetCardShadow(),
         shape = DashboardWidgetCardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -562,7 +561,7 @@ private fun DashboardGaugeTile(widget: DashboardWidget) {
             Text(
                 text = widget.title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -594,13 +593,13 @@ private fun DashboardGaugeTile(widget: DashboardWidget) {
                 Text(
                     text = minValue.formatForCard(decimals = 0),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF223461),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = maxValue.formatForCard(decimals = 0),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF223461),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -621,7 +620,7 @@ private fun DashboardSemiCircleGaugeTile(
             .fillMaxWidth()
             .dashboardWidgetCardShadow(),
         shape = DashboardWidgetCardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -634,7 +633,7 @@ private fun DashboardSemiCircleGaugeTile(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -710,13 +709,13 @@ private fun SemiCircleGaugeArc(
             Text(
                 text = minText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = maxText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -749,7 +748,7 @@ private fun DashboardPrimaryColorGaugeTile(
             .fillMaxWidth()
             .dashboardWidgetCardShadow(),
         shape = DashboardWidgetCardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -762,7 +761,7 @@ private fun DashboardPrimaryColorGaugeTile(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -947,13 +946,13 @@ private fun PrimaryColorDialGauge(
             Text(
                 text = minText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = maxText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -994,7 +993,7 @@ private fun DashboardHorizontalBarGaugeTile(
             .fillMaxWidth()
             .dashboardWidgetCardShadow(),
         shape = DashboardWidgetCardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -1007,7 +1006,7 @@ private fun DashboardHorizontalBarGaugeTile(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1039,13 +1038,13 @@ private fun DashboardHorizontalBarGaugeTile(
                     Text(
                         text = minText,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF223461),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = maxText,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF223461),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -1056,7 +1055,7 @@ private fun DashboardHorizontalBarGaugeTile(
                         .align(Alignment.BottomCenter)
                         .padding(top = 4.dp),
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF374151),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
@@ -1080,7 +1079,7 @@ private fun DashboardVerticalBarGaugeTile(
             .fillMaxWidth()
             .dashboardWidgetCardShadow(),
         shape = DashboardWidgetCardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -1093,7 +1092,7 @@ private fun DashboardVerticalBarGaugeTile(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1122,7 +1121,7 @@ private fun DashboardVerticalBarGaugeTile(
                         .align(Alignment.BottomEnd)
                         .padding(end = 26.dp, bottom = 8.dp),
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color(0xFF223461),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.End,
                     maxLines = 1,
@@ -1156,7 +1155,7 @@ private fun SingleVerticalSegmentedBar(
                 .height(barHeight)
                 .clip(RoundedCornerShape(999.dp))
                 .border(8.dp, Color(0xFFCBD5E1), RoundedCornerShape(999.dp))
-                .background(Color(0xFFE2E8F0), RoundedCornerShape(999.dp))
+                .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(999.dp))
         ) {
             segmentColors.asReversed().forEach { color ->
                 Box(
@@ -1193,7 +1192,7 @@ private fun SingleVerticalSegmentedBar(
                 .align(Alignment.TopStart)
                 .padding(start = 78.dp, top = 4.dp),
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF223461),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold
         )
         Text(
@@ -1202,7 +1201,7 @@ private fun SingleVerticalSegmentedBar(
                 .align(Alignment.BottomStart)
                 .padding(start = 78.dp, bottom = 4.dp),
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF223461),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -1239,7 +1238,7 @@ private fun DashboardArchSpeedometerTile(
             .fillMaxWidth()
             .dashboardWidgetCardShadow(),
         shape = DashboardWidgetCardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -1252,7 +1251,7 @@ private fun DashboardArchSpeedometerTile(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1354,13 +1353,13 @@ private fun ArchSpeedometerGauge(
             Text(
                 text = minText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = maxText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -1378,7 +1377,7 @@ private fun DashboardRadialGaugeTile(
             .fillMaxWidth()
             .dashboardWidgetCardShadow(),
         shape = DashboardWidgetCardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -1391,7 +1390,7 @@ private fun DashboardRadialGaugeTile(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1449,7 +1448,7 @@ private fun RadialGaugeRing(
         Text(
             text = valueText,
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF374151),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1627,7 +1626,7 @@ private fun DashboardComparisonCard(widget: DashboardWidget) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
@@ -1640,7 +1639,7 @@ private fun DashboardComparisonCard(widget: DashboardWidget) {
                 text = widget.title,
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -1855,7 +1854,7 @@ private fun ComparisonChildTile(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
                 shape = RoundedCornerShape(12.dp)
             )
-            .background(Color.White, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
     ) {
         Box(
             modifier = Modifier
@@ -1880,14 +1879,14 @@ private fun ComparisonChildTile(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF556782),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = value.formatDashboardValue(),
                 style = MaterialTheme.typography.headlineSmall,
-                color = Color(0xFF0F172A),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
@@ -1895,7 +1894,7 @@ private fun ComparisonChildTile(
                 text = unit,
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF66768C),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.End,
                 maxLines = 1
             )
@@ -1926,7 +1925,7 @@ private fun DashboardWith4Cards(widget: DashboardWidget) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
@@ -1939,7 +1938,7 @@ private fun DashboardWith4Cards(widget: DashboardWidget) {
                 text = widget.title,
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -1979,7 +1978,7 @@ private fun With4RowTile(
                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
                 RoundedCornerShape(12.dp)
             )
-            .background(Color.White, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
     ) {
         Box(
             modifier = Modifier
@@ -2003,14 +2002,14 @@ private fun With4RowTile(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF556782),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = value.formatDashboardValue(unit),
                 style = MaterialTheme.typography.titleLarge,
-                color = Color(0xFF0F172A),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -2043,7 +2042,7 @@ private fun DashboardTableFormat(widget: DashboardWidget) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
@@ -2056,7 +2055,7 @@ private fun DashboardTableFormat(widget: DashboardWidget) {
                 text = widget.title,
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -2099,7 +2098,7 @@ private fun DashboardTableFormat(widget: DashboardWidget) {
                                     .weight(1f)
                                     .padding(start = 10.dp, end = 10.dp),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF0F172A),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -2111,7 +2110,7 @@ private fun DashboardTableFormat(widget: DashboardWidget) {
                         Text(
                             text = widget.valuesByField[label].formatDashboardValue(unit),
                             style = MaterialTheme.typography.bodyLarge,
-                            color = Color(0xFF0F172A),
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -2128,7 +2127,7 @@ private fun DashboardCombinationHorizontalBar(widget: DashboardWidget) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
@@ -2141,7 +2140,7 @@ private fun DashboardCombinationHorizontalBar(widget: DashboardWidget) {
                 text = widget.title,
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -2180,7 +2179,7 @@ private fun CombinationHorizontalBarTile(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -2207,7 +2206,7 @@ private fun CombinationHorizontalBarTile(
                             .padding(start = 8.dp)
                             .weight(1f),
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF0F172A),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -2216,7 +2215,7 @@ private fun CombinationHorizontalBarTile(
                 Text(
                     text = item.value.formatDashboardValue(item.unit),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF0F172A),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -2244,12 +2243,12 @@ private fun CombinationHorizontalBarTile(
                     Text(
                         text = "Min: ${item.min.formatForCard(decimals = 0)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF64748B)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "Max: ${item.max.formatForCard(decimals = 0)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF64748B)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -2342,7 +2341,7 @@ private fun DashboardCombinationVerticalBar(widget: DashboardWidget) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
@@ -2355,7 +2354,7 @@ private fun DashboardCombinationVerticalBar(widget: DashboardWidget) {
                 text = widget.title,
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -2392,7 +2391,7 @@ private fun CombinationVerticalBarTile(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -2402,7 +2401,7 @@ private fun CombinationVerticalBarTile(
             Text(
                 text = item.label,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF0F172A),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -2420,7 +2419,7 @@ private fun CombinationVerticalBarTile(
                         .height(barHeight)
                         .clip(RoundedCornerShape(999.dp))
                         .border(8.dp, Color(0xFFCBD5E1), RoundedCornerShape(999.dp))
-                        .background(Color(0xFFE2E8F0), RoundedCornerShape(999.dp))
+                        .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(999.dp))
                 ) {
                     segmentColors.asReversed().forEach { c ->
                         Box(
@@ -2475,7 +2474,7 @@ private fun CombinationVerticalBarTile(
                 text = item.value.formatDashboardValue(item.unit),
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF0F172A),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1
@@ -2764,7 +2763,7 @@ private fun DashboardGenericMetricTile(
             Text(
                 text = widget.title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF556782),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -2809,10 +2808,71 @@ private fun DashboardCardTile(widget: DashboardWidget) {
         "status_card" -> DashboardStatusCard(widget = widget)
         "big_icon_stat_card" -> DashboardBigIconStatCard(widget = widget)
         "value_status_card" -> DashboardValueStatusCard(widget = widget)
+        "status_text_widget" -> DashboardStatusTextCard(widget = widget)
         else -> DashboardFallbackCard(
             widget = widget,
             subtitle = "Unsupported card: ${widget.subType}"
         )
+    }
+}
+
+@Composable
+private fun DashboardStatusTextCard(widget: DashboardWidget) {
+    val source = widget.sources.firstOrNull()
+    val text = source?.statusTextFor(widget.currentValue)
+    val accent = MaterialTheme.colorScheme.primary
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = widget.title,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = accent,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+            Box(
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = 112.dp)
+                    .background(accent.copy(alpha = 0.04f), RoundedCornerShape(8.dp))
+                    .border(2.dp, accent, RoundedCornerShape(8.dp))
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = text ?: if (widget.currentValue == null) "No data" else "No matching text",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Val: ${widgetValueLabel(widget)}",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = if (source?.valueInputMode == "bit") "Bit Mode" else "Value Mode",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
@@ -3050,7 +3110,7 @@ private fun DashboardSensorValueWithIconCard(widget: DashboardWidget) {
             .fillMaxWidth()
             .heightIn(min = 180.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -3087,7 +3147,7 @@ private fun DashboardSensorValueWithIconCard(widget: DashboardWidget) {
             Text(
                 text = widget.title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -3100,13 +3160,13 @@ private fun DashboardSensorValueWithIconCard(widget: DashboardWidget) {
                 Text(
                     text = widget.currentValue?.let { it.formatForCard() } ?: "--",
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color(0xFF0F172A),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = widget.unit.orEmpty(),
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF0F172A)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -3223,7 +3283,7 @@ private fun DashboardBigIconStatCard(widget: DashboardWidget) {
             .fillMaxWidth()
             .heightIn(min = 210.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         BoxWithConstraints(
@@ -3242,7 +3302,7 @@ private fun DashboardBigIconStatCard(widget: DashboardWidget) {
                     text = widget.title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF223461),
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
@@ -3381,7 +3441,7 @@ private fun DashboardValueStatusCard(widget: DashboardWidget) {
             .fillMaxWidth()
             .heightIn(min = 180.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -3394,7 +3454,7 @@ private fun DashboardValueStatusCard(widget: DashboardWidget) {
             Text(
                 text = widget.title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF223461),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -3464,7 +3524,7 @@ private fun DashboardFallbackCard(widget: DashboardWidget, subtitle: String) {
             .fillMaxWidth()
             .heightIn(min = 116.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -3501,7 +3561,7 @@ private fun DashboardSimpleValueCard(
             .fillMaxWidth()
             .heightIn(min = 156.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -3632,10 +3692,8 @@ private fun DashboardHeatMapCard(widget: DashboardWidget) {
             .firstOrNull()
             ?.points
             .orEmpty()
-            .sortedBy { it.timestamp }
             .filter { point -> legend.any { item -> item.value == point.value } }
     }
-    val timeLabels = remember(points) { points.distinctBy { it.timestamp } }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -3646,7 +3704,7 @@ private fun DashboardHeatMapCard(widget: DashboardWidget) {
             text = widget.title,
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 2,
@@ -3678,35 +3736,21 @@ private fun DashboardHeatMapCard(widget: DashboardWidget) {
                     .height(92.dp)
                     .clip(RoundedCornerShape(1.dp))
             ) {
-                val firstTimestamp = points.first().timestamp
-                val lastTimestamp = points.last().timestamp
-                val duration = (lastTimestamp - firstTimestamp).coerceAtLeast(1L)
-
-                points.forEachIndexed { index, point ->
-                    val start = (point.timestamp - firstTimestamp).toFloat() / duration
-                    val nextTimestamp = points.getOrNull(index + 1)?.timestamp ?: lastTimestamp
-                    val end = if (index == points.lastIndex) 1f
-                    else (nextTimestamp - firstTimestamp).toFloat() / duration
-                    val state = legend.first { item -> item.value == point.value }
+                // Equal-width categories match the web. Draw equal states as one solid run.
+                var runStart = 0
+                while (runStart < points.size) {
+                    val value = points[runStart].value
+                    var runEnd = runStart + 1
+                    while (runEnd < points.size && points[runEnd].value == value) runEnd++
+                    val state = legend.first { it.value == value }
+                    val left = size.width * runStart / points.size
+                    val right = size.width * runEnd / points.size
                     drawRect(
-                        color = Color(state.color),
-                        topLeft = androidx.compose.ui.geometry.Offset(size.width * start, 0f),
-                        size = androidx.compose.ui.geometry.Size(
-                            width = (size.width * (end - start)).coerceAtLeast(1f),
-                            height = size.height
-                        )
+                        color = androidx.compose.ui.graphics.lerp(Color(state.color), Color.White, 0.5f),
+                        topLeft = androidx.compose.ui.geometry.Offset(left, 0f),
+                        size = androidx.compose.ui.geometry.Size(right - left, size.height)
                     )
-                }
-
-                timeLabels.forEach { point ->
-                    val fraction = (point.timestamp - firstTimestamp).toFloat() / duration
-                    val x = size.width * fraction
-                    drawLine(
-                        color = Color.White.copy(alpha = 0.28f),
-                        start = androidx.compose.ui.geometry.Offset(x, 0f),
-                        end = androidx.compose.ui.geometry.Offset(x, size.height),
-                        strokeWidth = 1.dp.toPx()
-                    )
+                    runStart = runEnd
                 }
             }
         }
@@ -3714,49 +3758,52 @@ private fun DashboardHeatMapCard(widget: DashboardWidget) {
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(58.dp)
+                .height(28.dp)
                 .padding(start = 56.dp)
         ) {
-            val firstTimestamp = points.first().timestamp
-            val duration = (points.last().timestamp - firstTimestamp).coerceAtLeast(1L)
-            val axisY = 1.dp.toPx()
-            val axisColor = Color(0xFFD9DFE8)
             val labelPaint = Paint().apply {
                 color = android.graphics.Color.rgb(94, 95, 96)
-                textAlign = Paint.Align.RIGHT
                 textSize = 10.dp.toPx()
                 isAntiAlias = true
             }
-
-            drawLine(
-                color = axisColor,
-                start = androidx.compose.ui.geometry.Offset(0f, axisY),
-                end = androidx.compose.ui.geometry.Offset(size.width, axisY),
-                strokeWidth = 1.dp.toPx()
-            )
-
-            timeLabels.forEachIndexed { index, point ->
-                val fraction = (point.timestamp - firstTimestamp).toFloat() / duration
-                val x = size.width * fraction
-                drawLine(
-                    color = axisColor,
-                    start = androidx.compose.ui.geometry.Offset(x, axisY),
-                    end = androidx.compose.ui.geometry.Offset(x, axisY + 5.dp.toPx()),
-                    strokeWidth = 1.dp.toPx()
-                )
-                labelPaint.textAlign = when (index) {
-                    0 -> Paint.Align.LEFT
-                    else -> Paint.Align.RIGHT
+            val widestLabel = points.maxOf { labelPaint.measureText(it.label) }
+            val labelCount = (size.width / (widestLabel + 12.dp.toPx())).toInt()
+                .coerceIn(1, 5).coerceAtMost(points.size)
+            var previousLabelRight = Float.NEGATIVE_INFINITY
+            val lastLabelLeft = size.width - labelPaint.measureText(points.last().label)
+            repeat(labelCount) { labelIndex ->
+                val pointIndex = if (labelCount == 1) 0 else
+                    (labelIndex.toDouble() * points.lastIndex / (labelCount - 1)).roundToInt()
+                val x = when {
+                    labelCount == 1 -> size.width / 2f
+                    labelIndex == 0 -> 0f
+                    labelIndex == labelCount - 1 -> size.width
+                    else -> size.width * (pointIndex + 0.5f) / points.size
                 }
-                drawContext.canvas.nativeCanvas.save()
-                drawContext.canvas.nativeCanvas.rotate(-45f, x, 15.dp.toPx())
+                labelPaint.textAlign = when {
+                    labelCount == 1 -> Paint.Align.CENTER
+                    labelIndex == 0 -> Paint.Align.LEFT
+                    labelIndex == labelCount - 1 -> Paint.Align.RIGHT
+                    else -> Paint.Align.CENTER
+                }
+                val labelWidth = labelPaint.measureText(points[pointIndex].label)
+                val labelLeft = when (labelPaint.textAlign) {
+                    Paint.Align.LEFT -> x
+                    Paint.Align.RIGHT -> x - labelWidth
+                    else -> x - labelWidth / 2f
+                }
+                val labelRight = labelLeft + labelWidth
+                val gap = 8.dp.toPx()
+                if (labelIndex > 0 && labelIndex < labelCount - 1 &&
+                    (labelLeft < previousLabelRight + gap || labelRight > lastLabelLeft - gap)
+                ) return@repeat
                 drawContext.canvas.nativeCanvas.drawText(
-                    point.label,
+                    points[pointIndex].label,
                     x,
-                    15.dp.toPx(),
+                    14.dp.toPx(),
                     labelPaint
                 )
-                drawContext.canvas.nativeCanvas.restore()
+                previousLabelRight = labelRight
             }
         }
     }
@@ -3830,7 +3877,7 @@ private fun DashboardDonutChartCard(widget: DashboardWidget) {
             text = widget.title,
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -3905,7 +3952,7 @@ private fun DashboardPieChartCard(widget: DashboardWidget) {
             text = widget.title,
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -3977,7 +4024,7 @@ private fun DashboardPolarAreaChartCard(widget: DashboardWidget) {
             text = widget.title,
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -4136,7 +4183,7 @@ private fun PolarAreaLegendList(
                 Text(
                     text = item.label,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF66768C),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -4317,7 +4364,7 @@ private fun DashboardBarChartCard(widget: DashboardWidget) {
             text = widget.title.takeIf { it.isNotBlank() } ?: "BarChart",
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -4478,7 +4525,7 @@ private fun DashboardAreaChartCard(widget: DashboardWidget) {
             text = widget.title.takeIf { it.isNotBlank() } ?: "Area Chart",
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -4636,8 +4683,14 @@ private fun DashboardAreaChartCard(widget: DashboardWidget) {
 
 @Composable
 private fun DashboardStateChartCard(widget: DashboardWidget) {
-    val plottedSeries = remember(widget) { widget.seriesForChartDisplay() }
-    val xLabels = plottedSeries.firstOrNull()?.points?.map { it.label }.orEmpty()
+    val plottedSeries = remember(widget) { widget.chartSeries.filter { it.points.isNotEmpty() } }
+    val timeline = remember(plottedSeries) {
+        plottedSeries.flatMap { it.points }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
+    }
+    val xLabels = timeline.map { it.label }
+    val timeIndexes = remember(timeline) {
+        timeline.mapIndexed { index, point -> point.timestamp to index }.toMap()
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -4648,7 +4701,7 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
             text = widget.title.takeIf { it.isNotBlank() } ?: "State Chart",
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -4676,12 +4729,21 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
                 .padding(horizontal = 2.dp, vertical = 2.dp)
         ) {
             val allValues = plottedSeries.flatMap { it.points }.map { it.value }
-            val axisMax = widget.stateAxisAbsMax(allValues)
-            val yMin = -axisMax
-            val yMax = axisMax
+            val axisBounds = chartAxisBounds(allValues, includeZero = false, targetSteps = 10)
+            val yMin = axisBounds.min
+            val yMax = axisBounds.max
             val valueRange = (yMax - yMin).takeIf { it > 0.0 } ?: 1.0
 
-            val leftPadding = 34f
+            val yLabelPaint = Paint().apply {
+                color = android.graphics.Color.rgb(111, 118, 128)
+                textAlign = Paint.Align.RIGHT
+                textSize = 18f
+                isAntiAlias = true
+            }
+            val leftPadding = maxOf(
+                yLabelPaint.measureText(yMin.formatStateAxisLabel()),
+                yLabelPaint.measureText(yMax.formatStateAxisLabel())
+            ) + 12f
             val rightPadding = 4f
             val topPadding = 6f
             val bottomPadding = 52f
@@ -4692,7 +4754,7 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
             val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
             val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
             val horizontalSteps = (xLabels.size - 1).coerceAtLeast(1)
-            val verticalSteps = ((valueRange / 200.0).roundToInt()).coerceIn(4, 8)
+            val verticalSteps = axisBounds.steps
             val gridColor = Color(0xFFE1E5EA)
 
             repeat(verticalSteps + 1) { step ->
@@ -4714,12 +4776,6 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
                 )
             }
 
-            val yLabelPaint = Paint().apply {
-                color = android.graphics.Color.rgb(111, 118, 128)
-                textAlign = Paint.Align.RIGHT
-                textSize = 18f
-                isAntiAlias = true
-            }
             repeat(verticalSteps + 1) { step ->
                 val value = yMax - (valueRange * step / verticalSteps)
                 val y = plotTop + (plotHeight * step / verticalSteps)
@@ -4738,14 +4794,21 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
 
                 val path = Path()
                 points.forEachIndexed { pointIndex, point ->
-                    val x = if (points.size == 1) {
+                    val x = if (timeline.size == 1) {
                         plotLeft + (plotWidth / 2f)
                     } else {
-                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                        plotLeft + plotWidth * timeIndexes.getValue(point.timestamp) / horizontalSteps
                     }
                     val y =
                         plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
-                    if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    if (pointIndex == 0) {
+                        path.moveTo(x, y)
+                    } else {
+                        val previousY = plotBottom -
+                            (((points[pointIndex - 1].value - yMin) / valueRange).toFloat() * plotHeight)
+                        path.lineTo(x, previousY)
+                        path.lineTo(x, y)
+                    }
                 }
                 drawPath(
                     path = path,
@@ -4753,11 +4816,11 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
                     style = Stroke(width = 4f, cap = StrokeCap.Round)
                 )
 
-                points.forEachIndexed { pointIndex, point ->
-                    val x = if (points.size == 1) {
+                points.forEach { point ->
+                    val x = if (timeline.size == 1) {
                         plotLeft + (plotWidth / 2f)
                     } else {
-                        plotLeft + (plotWidth * pointIndex / (points.size - 1))
+                        plotLeft + plotWidth * timeIndexes.getValue(point.timestamp) / horizontalSteps
                     }
                     val y =
                         plotBottom - (((point.value - yMin) / valueRange).toFloat() * plotHeight)
@@ -4781,14 +4844,26 @@ private fun DashboardStateChartCard(widget: DashboardWidget) {
                 textSize = 13f
                 isAntiAlias = true
             }
+            val widestLabel = xLabels.maxOfOrNull { xLabelPaint.measureText(it) } ?: 0f
+            val rotateLabels = plotWidth / horizontalSteps < widestLabel + 8f
+            val labelStride = kotlin.math.ceil(xLabels.size / 8.0).toInt().coerceAtLeast(1)
             xLabels.forEachIndexed { index, label ->
+                if (index % labelStride != 0 && index != xLabels.lastIndex) return@forEachIndexed
                 val x = if (xLabels.size == 1) {
                     plotLeft + (plotWidth / 2f)
                 } else {
                     plotLeft + (plotWidth * index / (xLabels.size - 1))
                 }
                 drawContext.canvas.nativeCanvas.save()
-                drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                xLabelPaint.textAlign = when {
+                    rotateLabels -> Paint.Align.RIGHT
+                    index == 0 -> Paint.Align.LEFT
+                    index == xLabels.lastIndex -> Paint.Align.RIGHT
+                    else -> Paint.Align.CENTER
+                }
+                if (rotateLabels) {
+                    drawContext.canvas.nativeCanvas.rotate(-42f, x, plotBottom + 28f)
+                }
                 drawContext.canvas.nativeCanvas.drawText(
                     label,
                     x,
@@ -4817,7 +4892,7 @@ private fun DashboardScatterChartCard(widget: DashboardWidget) {
                 ?: "Scattered Chart",
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -4971,29 +5046,6 @@ private fun StateChartLegendGrid(series: List<DashboardWidgetSeries>) {
     SeriesLegendFlow(series, SeriesLegendMarker.OutlineBar)
 }
 
-private fun DashboardWidget.stateAxisAbsMax(values: List<Double>): Double {
-    val configuredMax = sources
-        .flatMap { source ->
-            source.minValues + source.maxValues + listOf(
-                source.minValue,
-                source.maxValue
-            )
-        }
-        .filterNotNull()
-        .filter { it.isFinite() }
-        .maxOfOrNull { abs(it) }
-    val dataMax = values
-        .filter { it.isFinite() }
-        .maxOfOrNull { abs(it) }
-    return (configuredMax ?: dataMax ?: 1.0).niceStateAxisAbsMax()
-}
-
-private fun Double.niceStateAxisAbsMax(): Double {
-    val value = takeIf { it.isFinite() && it > 0.0 } ?: return 1.0
-    val step = niceChartStep(value / 4.0)
-    return kotlin.math.ceil(value / step) * step
-}
-
 private fun Long.toHourBucket(): Long =
     java.time.Instant.ofEpochMilli(this)
         .atZone(java.time.ZoneId.systemDefault())
@@ -5063,7 +5115,8 @@ private data class ChartAxisBounds(
 
 private fun chartAxisBounds(
     values: List<Double>,
-    includeZero: Boolean
+    includeZero: Boolean,
+    targetSteps: Int = 5
 ): ChartAxisBounds {
     val finiteValues = values.filter { it.isFinite() }
     if (finiteValues.isEmpty()) return ChartAxisBounds(-1.0, 1.0, 4)
@@ -5081,13 +5134,13 @@ private fun chartAxisBounds(
         rawMax += padding
     }
 
-    val step = niceChartStep((rawMax - rawMin) / 5.0)
+    val step = niceChartStep((rawMax - rawMin) / targetSteps)
     val min = kotlin.math.floor(rawMin / step) * step
     val max = kotlin.math.ceil(rawMax / step) * step
     return ChartAxisBounds(
         min = min,
         max = max.takeIf { it > min } ?: (min + DEFAULT_CHART_AXIS_RANGE),
-        steps = (((max - min) / step).roundToInt()).coerceIn(4, 8)
+        steps = (((max - min) / step).roundToInt()).coerceIn(4, maxOf(8, targetSteps))
     )
 }
 
@@ -5112,11 +5165,8 @@ private fun Double.formatBarAxisLabel(): String =
     }
 
 private fun Double.formatStateAxisLabel(): String =
-    if (abs(this) >= 10.0 && this % 1.0 == 0.0) {
-        this.toInt().toString()
-    } else {
-        formatOneDecimal()
-    }
+    java.text.DecimalFormat("#,##0.##########", java.text.DecimalFormatSymbols(java.util.Locale.US))
+        .format(if (this == 0.0) 0.0 else this)
 
 @Composable
 private fun CircularChartLegendGrid(items: List<CircularChartItem>) {
@@ -5133,7 +5183,7 @@ private fun CircularChartLegendGrid(items: List<CircularChartItem>) {
             Text(
                 text = item.label,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF66768C),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -5160,7 +5210,7 @@ private fun DashboardLineChartCard(widget: DashboardWidget) {
             text = widget.title.takeIf { it.isNotBlank() } ?: "Line Chart",
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color(0xFF172554),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
