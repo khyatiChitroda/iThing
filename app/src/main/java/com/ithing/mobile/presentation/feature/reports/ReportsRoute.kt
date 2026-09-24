@@ -89,8 +89,6 @@ import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsD
 import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsFrequency
 import com.ithing.mobile.presentation.feature.reports.analyticsReport.AnalyticsReportDialog
 import com.ithing.mobile.presentation.feature.reports.analyticsReport.ScheduleDeliveryFrequency
-import com.ithing.mobile.presentation.theme.LightGrayBg
-import com.ithing.mobile.presentation.theme.MutedText
 import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.White
 import kotlinx.coroutines.Dispatchers
@@ -301,7 +299,7 @@ private fun ReportsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(LightGrayBg)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         uiState.exceptionDownloadId?.let { downloadId ->
             LaunchedEffect(downloadId) {
@@ -532,7 +530,7 @@ private fun ReportsTopToast(
         contentAlignment = Alignment.TopCenter
     ) {
         Surface(
-            color = Color(0xFF0F172A),
+            color = MaterialTheme.colorScheme.onSurface,
             shape = RoundedCornerShape(14.dp),
             shadowElevation = 6.dp
         ) {
@@ -595,7 +593,7 @@ private fun ReportsFilterScreen(
     BackHandler(onBack = onCancel)
 
     Scaffold(
-        containerColor = LightGrayBg,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                 Row(
@@ -650,7 +648,7 @@ private fun ReportsFilterScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(LightGrayBg)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
@@ -677,7 +675,7 @@ private fun ReportsFilterSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -743,7 +741,7 @@ private fun <T> FilterCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LightGrayBg),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
@@ -881,7 +879,7 @@ private fun ReportTypeCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF0FA)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -892,12 +890,12 @@ private fun ReportTypeCard(
                 text = card.title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF44536D)
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = card.description,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF5E6F8D)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Box(
@@ -953,7 +951,7 @@ private fun ScheduledReportsSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -1170,7 +1168,7 @@ private fun SavedReportsSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1182,14 +1180,14 @@ private fun SavedReportsSection(
                     text = "Saved Reports",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF233A69)
+                    color = MaterialTheme.colorScheme.primary
                 )
 
                 IconButton(onClick = { loadFiles() }) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Refresh",
-                        tint = Color(0xFF233A69)
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -1201,7 +1199,7 @@ private fun SavedReportsSection(
                 Text(
                     text = "No saved reports yet. Generate an Analytic Report or export an Exception Report.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MutedText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp)
                 )
                 return@Column
@@ -1213,7 +1211,7 @@ private fun SavedReportsSection(
                         text = "Analytics Reports",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF233A69),
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     pdfFiles.take(6).forEach { file ->
@@ -1233,7 +1231,7 @@ private fun SavedReportsSection(
                         text = "Excel Reports",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF233A69),
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 10.dp)
                     )
                     xlsxFiles.take(6).forEach { file ->
@@ -1261,7 +1259,7 @@ private fun SavedReportRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier
@@ -1276,14 +1274,14 @@ private fun SavedReportRow(
                     text = file.name,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF0F172A),
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${(file.length() / 1024).coerceAtLeast(1)} KB",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -1364,7 +1362,7 @@ private fun ScheduledReportsHeaderCell(
         modifier = Modifier.width(width),
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
-        color = Color(0xFF52637E),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         maxLines = 1,
         overflow = TextOverflow.Clip
@@ -1384,7 +1382,7 @@ private fun LoadingReportsState() {
         Text(
             text = "Loading scheduled reports...",
             style = MaterialTheme.typography.bodyMedium,
-            color = MutedText
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -1411,7 +1409,7 @@ private fun EmptyReportsState(
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MutedText
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -1426,7 +1424,7 @@ private fun ScheduledReportsRow(
     Card(
         modifier = Modifier.width(840.dp),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -1456,7 +1454,7 @@ private fun ScheduledReportCell(
         text = text,
         modifier = Modifier.width(width),
         style = MaterialTheme.typography.bodyLarge,
-        color = Color(0xFF53637D),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
@@ -1496,7 +1494,7 @@ private fun ReportFieldsDialog(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier.padding(vertical = 16.dp),
@@ -1513,14 +1511,14 @@ private fun ReportFieldsDialog(
                         text = "Reports Fields",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF52637E)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = Color(0xFF6B7280)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1529,7 +1527,7 @@ private fun ReportFieldsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(Color(0xFFDCE3ED))
+                        .background(MaterialTheme.colorScheme.outlineVariant)
                 )
 
                 Column(
@@ -1545,14 +1543,14 @@ private fun ReportFieldsDialog(
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = "Fields",
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -1573,13 +1571,13 @@ private fun ReportFieldsDialog(
                                     text = left,
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = Color(0xFF53637D)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = right,
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = Color(0xFF53637D)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1591,7 +1589,7 @@ private fun ReportFieldsDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 18.dp)
                         .height(1.dp)
-                        .background(Color(0xFFDCE3ED))
+                        .background(MaterialTheme.colorScheme.outlineVariant)
                 )
             }
         }
@@ -1628,7 +1626,7 @@ private fun ReportsPaginationFooter(
             Text(
                 text = currentPage.toString(),
                 style = MaterialTheme.typography.titleLarge,
-                color = Color(0xFF2A3347),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Medium
             )
             PaginationIconButton(
@@ -1651,7 +1649,7 @@ private fun ReportsPaginationFooter(
             Text(
                 text = "Showing $startEntry to $endEntry of $totalCount entries",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF4F5D74)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Surface(
@@ -1666,13 +1664,13 @@ private fun ReportsPaginationFooter(
                     Text(
                         text = pageSize.toString(),
                         style = MaterialTheme.typography.titleLarge,
-                        color = Color(0xFF4F5D74)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = "⌄",
                         style = MaterialTheme.typography.titleLarge,
-                        color = Color(0xFF4F5D74)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1693,7 +1691,7 @@ private fun PaginationIconButton(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (enabled) Color(0xFF2A3347) else Color(0xFFB8C0CC)
+            tint = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
         )
     }
 }
@@ -1720,7 +1718,7 @@ private fun ScheduledReportDeleteCell(
             modifier = Modifier
                 .width(1.dp)
                 .height(34.dp)
-                .background(Color(0xFFD9E1EC))
+                .background(MaterialTheme.colorScheme.outlineVariant)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Icon(

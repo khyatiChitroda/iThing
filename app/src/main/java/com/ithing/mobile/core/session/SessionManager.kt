@@ -202,6 +202,10 @@ class SessionManager @Inject constructor(
             it.remove(ROLE_KEY)
             it.remove(USER_ID_KEY)
             it.remove(OEM_LOGO_KEY)
+            it.remove(DASHBOARD_INDUSTRY_KEY)
+            it.remove(DASHBOARD_OEM_KEY)
+            it.remove(DASHBOARD_CUSTOMER_KEY)
+            it.remove(DASHBOARD_DEVICE_KEY)
         }
     }
 

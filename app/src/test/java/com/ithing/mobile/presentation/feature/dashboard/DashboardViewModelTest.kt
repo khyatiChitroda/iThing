@@ -27,6 +27,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.clearInvocations
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -169,6 +172,57 @@ class DashboardViewModelTest {
         assertTrue(viewModel.uiState.value.widgets.isEmpty())
         assertEquals("Select a customer and device to load widgets", viewModel.uiState.value.errorMessage)
         assertFalse(viewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    fun `cancelling filter edit restores state without persisting draft`() = runTest {
+        val viewModel = DashboardViewModel(
+            logoutUseCase = logoutUseCase,
+            dashboardRepository = dashboardRepository,
+            sessionManager = sessionManager
+        )
+        advanceUntilIdle()
+        val originalState = viewModel.uiState.value
+        clearInvocations(sessionManager)
+
+        viewModel.beginFilterEditing()
+        viewModel.onIndustrySelected(Industry(id = "auto", name = "Automotive"))
+        advanceUntilIdle()
+        viewModel.cancelFilterEditing()
+        advanceUntilIdle()
+
+        assertEquals(originalState.selectedIndustry, viewModel.uiState.value.selectedIndustry)
+        assertEquals(originalState.selectedDevice, viewModel.uiState.value.selectedDevice)
+        verify(sessionManager, never()).saveDashboardFilters(
+            industryId = "auto",
+            oemId = null,
+            customerId = null,
+            deviceId = null
+        )
+    }
+
+    @Test
+    fun `applying filter edit persists final selection`() = runTest {
+        val viewModel = DashboardViewModel(
+            logoutUseCase = logoutUseCase,
+            dashboardRepository = dashboardRepository,
+            sessionManager = sessionManager
+        )
+        advanceUntilIdle()
+        clearInvocations(sessionManager)
+
+        viewModel.beginFilterEditing()
+        viewModel.onIndustrySelected(Industry(id = "auto", name = "Automotive"))
+        advanceUntilIdle()
+        viewModel.applyFilterEditing()
+        advanceUntilIdle()
+
+        verify(sessionManager).saveDashboardFilters(
+            industryId = "auto",
+            oemId = null,
+            customerId = null,
+            deviceId = null
+        )
     }
 
     @Test

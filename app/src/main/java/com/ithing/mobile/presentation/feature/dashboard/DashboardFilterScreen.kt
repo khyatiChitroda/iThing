@@ -29,7 +29,6 @@ import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
-import com.ithing.mobile.presentation.theme.LightGrayBg
 import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.White
 
@@ -47,7 +46,7 @@ fun DashboardFilterScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = LightGrayBg,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                 Row(
@@ -102,7 +101,7 @@ fun DashboardFilterScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(LightGrayBg)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)

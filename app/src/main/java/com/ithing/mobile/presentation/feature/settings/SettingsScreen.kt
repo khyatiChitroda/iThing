@@ -48,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import com.ithing.mobile.presentation.components.IThingCard
 import com.ithing.mobile.presentation.components.IThingPrimaryButton
 import com.ithing.mobile.presentation.components.SectionHeader
-import com.ithing.mobile.presentation.theme.LightGrayBg
 
 // Data models
 data class UserProfile(

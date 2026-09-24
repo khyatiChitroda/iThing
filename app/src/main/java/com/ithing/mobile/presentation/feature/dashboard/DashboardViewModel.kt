@@ -55,6 +55,9 @@ class DashboardViewModel @Inject constructor(
 ) : ViewModel() {
     private var autoRefreshJob: Job? = null
     private var dashboardRefreshJob: Job? = null
+    private var oemsLoadJob: Job? = null
+    private var customersLoadJob: Job? = null
+    private var devicesLoadJob: Job? = null
     private var dashboardRefreshGeneration: Long = 0L
     private var cachedWidgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget> = emptyList()
     private var cachedMapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto? = null
@@ -71,7 +74,10 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onIndustrySelected(industry: Industry?, autoSelectChildren: Boolean = false) {
-        viewModelScope.launch {
+        oemsLoadJob?.cancel()
+        customersLoadJob?.cancel()
+        devicesLoadJob?.cancel()
+        oemsLoadJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     selectedIndustry = industry,
@@ -95,7 +101,9 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onOemSelected(oem: Oem?, autoSelectChildren: Boolean = false) {
-        viewModelScope.launch {
+        customersLoadJob?.cancel()
+        devicesLoadJob?.cancel()
+        customersLoadJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     selectedOem = oem,
@@ -117,7 +125,8 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onCustomerSelected(customer: Customer?, autoSelectChildren: Boolean = false) {
-        viewModelScope.launch {
+        devicesLoadJob?.cancel()
+        devicesLoadJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     selectedCustomer = customer,
@@ -186,6 +195,7 @@ class DashboardViewModel @Inject constructor(
 
     fun applyFilterEditing() {
         filterEditSnapshot = null
+        persistDashboardFilters()
         val currentState = _uiState.value
         if (
             currentState.selectedCustomer != null &&
@@ -211,6 +221,9 @@ class DashboardViewModel @Inject constructor(
 
     fun cancelFilterEditing() {
         val snapshot = filterEditSnapshot ?: return
+        oemsLoadJob?.cancel()
+        customersLoadJob?.cancel()
+        devicesLoadJob?.cancel()
         dashboardRefreshJob?.cancel()
         cachedWidgetsConfig = snapshot.widgetsConfig
         cachedMapping = snapshot.mapping
@@ -495,6 +508,8 @@ class DashboardViewModel @Inject constructor(
                         val selected = industries.firstOrNull { it.id == restoredFilterIds?.industryId }
                             ?: industries.first()
                         onIndustrySelected(selected, autoSelectChildren = true)
+                    } else if (industries.isEmpty()) {
+                        finishFilterRestoration()
                     }
                 }
                 .onFailure { error ->
@@ -504,6 +519,7 @@ class DashboardViewModel @Inject constructor(
                             errorMessage = error.message ?: "Failed to load industries"
                         )
                     }
+                    finishFilterRestoration(persistCurrentSelection = false)
                 }
         }
     }
@@ -511,11 +527,13 @@ class DashboardViewModel @Inject constructor(
     private suspend fun loadOems(industry: String?, autoSelectChildren: Boolean = false) {
         if (industry.isNullOrBlank()) {
             _uiState.update { it.copy(oems = emptyList(), customers = emptyList(), devices = emptyList(), isLoading = false) }
+            finishFilterRestoration()
             return
         }
 
         dashboardRepository.getOems(industry)
             .onSuccess { oems ->
+                if (_uiState.value.selectedIndustry?.name != industry) return@onSuccess
                 _uiState.update {
                     it.copy(
                         oems = oems,
@@ -528,9 +546,12 @@ class DashboardViewModel @Inject constructor(
                 if (autoSelectChildren && _uiState.value.selectedOem == null && oems.isNotEmpty()) {
                     val selected = oems.firstOrNull { it.id == restoredFilterIds?.oemId } ?: oems.first()
                     onOemSelected(selected, autoSelectChildren = true)
+                } else if (autoSelectChildren && oems.isEmpty()) {
+                    finishFilterRestoration()
                 }
             }
             .onFailure { error ->
+                if (_uiState.value.selectedIndustry?.name != industry) return@onFailure
                 _uiState.update {
                     it.copy(
                         oems = emptyList(),
@@ -540,17 +561,22 @@ class DashboardViewModel @Inject constructor(
                         errorMessage = error.message ?: "Failed to load OEMs"
                     )
                 }
+                if (autoSelectChildren) {
+                    finishFilterRestoration(persistCurrentSelection = false)
+                }
             }
     }
 
     private suspend fun loadCustomers(oemId: String?, autoSelectChildren: Boolean = false) {
         if (oemId.isNullOrBlank()) {
             _uiState.update { it.copy(customers = emptyList(), devices = emptyList(), isLoading = false) }
+            finishFilterRestoration()
             return
         }
 
         dashboardRepository.getCustomers(oemId)
             .onSuccess { customers ->
+                if (_uiState.value.selectedOem?.id != oemId) return@onSuccess
                 _uiState.update {
                     it.copy(
                         customers = customers,
@@ -563,9 +589,12 @@ class DashboardViewModel @Inject constructor(
                     val selected = customers.firstOrNull { it.id == restoredFilterIds?.customerId }
                         ?: customers.first()
                     onCustomerSelected(selected, autoSelectChildren = true)
+                } else if (autoSelectChildren && customers.isEmpty()) {
+                    finishFilterRestoration()
                 }
             }
             .onFailure { error ->
+                if (_uiState.value.selectedOem?.id != oemId) return@onFailure
                 _uiState.update {
                     it.copy(
                         customers = emptyList(),
@@ -574,17 +603,22 @@ class DashboardViewModel @Inject constructor(
                         errorMessage = error.message ?: "Failed to load customers"
                     )
                 }
+                if (autoSelectChildren) {
+                    finishFilterRestoration(persistCurrentSelection = false)
+                }
             }
     }
 
     private suspend fun loadDevices(customerId: String?, autoSelectChildren: Boolean = false) {
         if (customerId.isNullOrBlank()) {
             _uiState.update { it.copy(devices = emptyList(), isLoading = false) }
+            finishFilterRestoration()
             return
         }
 
         dashboardRepository.getDevices(customerId)
             .onSuccess { devices ->
+                if (_uiState.value.selectedCustomer?.id != customerId) return@onSuccess
                 _uiState.update {
                     it.copy(
                         devices = devices,
@@ -595,11 +629,14 @@ class DashboardViewModel @Inject constructor(
                 if (autoSelectChildren && _uiState.value.selectedDevice == null && devices.isNotEmpty()) {
                     val selected = devices.firstOrNull { it.id == restoredFilterIds?.deviceId }
                         ?: devices.first()
-                    onDeviceSelected(selected)
                     restoredFilterIds = null
+                    onDeviceSelected(selected)
+                } else if (autoSelectChildren) {
+                    finishFilterRestoration()
                 }
             }
             .onFailure { error ->
+                if (_uiState.value.selectedCustomer?.id != customerId) return@onFailure
                 _uiState.update {
                     it.copy(
                         devices = emptyList(),
@@ -607,11 +644,14 @@ class DashboardViewModel @Inject constructor(
                         errorMessage = error.message ?: "Failed to load devices"
                     )
                 }
+                if (autoSelectChildren) {
+                    finishFilterRestoration(persistCurrentSelection = false)
+                }
             }
     }
 
     private fun persistDashboardFilters() {
-        if (restoredFilterIds != null) return
+        if (restoredFilterIds != null || filterEditSnapshot != null) return
         val state = _uiState.value
         viewModelScope.launch {
             sessionManager.saveDashboardFilters(
@@ -621,6 +661,12 @@ class DashboardViewModel @Inject constructor(
                 deviceId = state.selectedDevice?.id
             )
         }
+    }
+
+    private fun finishFilterRestoration(persistCurrentSelection: Boolean = true) {
+        if (restoredFilterIds == null) return
+        restoredFilterIds = null
+        if (persistCurrentSelection) persistDashboardFilters()
     }
 
     private companion object {

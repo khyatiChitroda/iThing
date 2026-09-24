@@ -19,11 +19,11 @@ private val LightColorScheme = lightColorScheme(
     onSecondary = White,
     secondaryContainer = LightBlue.copy(alpha = 0.2f),
     onSecondaryContainer = NavyBlue,
-    background = NavyBlue,
-    onBackground = White,
-    surface = CardBackground,
+    background = LightGrayBg,
+    onBackground = DarkText,
+    surface = White,
     onSurface = DarkText,
-    surfaceVariant = BorderColor,
+    surfaceVariant = CardBackground,
     onSurfaceVariant = MutedText,
     outline = BorderColor,
     outlineVariant = BorderColor.copy(alpha = 0.5f),
@@ -40,7 +40,7 @@ private val DarkColorScheme = darkColorScheme(
     onPrimaryContainer = White,
     secondary = LightBlue,
     onSecondary = DarkText,
-    secondaryContainer = NavyBlue.copy(alpha = 0.3f),
+    secondaryContainer = DarkBorder,
     onSecondaryContainer = White,
     background = DarkBackground,
     onBackground = White,
@@ -53,7 +53,7 @@ private val DarkColorScheme = darkColorScheme(
     error = ErrorRed,
     onError = White,
     errorContainer = ErrorRed.copy(alpha = 0.2f),
-    onErrorContainer = ErrorRed
+    onErrorContainer = White
 )
 
 @Composable

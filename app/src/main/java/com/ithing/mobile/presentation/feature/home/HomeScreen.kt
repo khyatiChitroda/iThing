@@ -33,11 +33,8 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.unit.LayoutDirection
 import com.ithing.mobile.presentation.components.IThingCard
 import com.ithing.mobile.presentation.components.IThingScreenContainer
-import com.ithing.mobile.presentation.theme.DarkText
-import com.ithing.mobile.presentation.theme.NavyBlue
 import com.ithing.mobile.presentation.theme.Slate600
-import com.ithing.mobile.presentation.theme.Theme1Blue
-import com.ithing.mobile.presentation.theme.Theme2Navy
+import com.ithing.mobile.presentation.theme.WebsiteBlue
 
 @Composable
 fun HomeScreen(
@@ -70,7 +67,7 @@ fun HomeScreen(
                             lineHeight = 38.sp,
                             fontWeight = FontWeight.Bold
                         ),
-                        color = NavyBlue
+                        color = WebsiteBlue
                     )
 
                     Text(
@@ -80,7 +77,7 @@ fun HomeScreen(
                             lineHeight = 30.sp,
                             fontWeight = FontWeight.Bold
                         ),
-                        color = DarkText
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Text(

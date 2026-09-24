@@ -80,7 +80,7 @@ fun AnalyticsReportDialog(
                 .fillMaxWidth(0.94f)
                 .heightIn(max = 760.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             BoxWithConstraints {
                 val compactLayout = maxWidth < 600.dp
@@ -96,14 +96,14 @@ fun AnalyticsReportDialog(
                             text = "Analytic Report",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         IconButton(onClick = onDismiss) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = Color(0xFF6B7280)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -121,7 +121,7 @@ fun AnalyticsReportDialog(
                             text = "Time Span",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF495C79)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Surface(
@@ -139,14 +139,14 @@ fun AnalyticsReportDialog(
                                 Icon(
                                     imageVector = Icons.Default.CalendarMonth,
                                     contentDescription = null,
-                                    tint = Color(0xFF233A69),
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Text(
                                     text = uiState.analyticsTimeSpanLabel,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF233A69)
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -275,7 +275,7 @@ private fun AnalyticsChartConfigCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -338,7 +338,7 @@ private fun AnalyticsChartConfigCard(
                         Text(
                             text = "Title",
                             style = MaterialTheme.typography.titleLarge,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
@@ -352,7 +352,7 @@ private fun AnalyticsChartConfigCard(
                         Text(
                             text = "Type of Chart",
                             style = MaterialTheme.typography.titleLarge,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         AnalyticsDropdownField(
@@ -372,7 +372,7 @@ private fun AnalyticsChartConfigCard(
                         Text(
                             text = "Choose Fields",
                             style = MaterialTheme.typography.titleLarge,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         AnalyticsMultiSelectField(
@@ -389,7 +389,7 @@ private fun AnalyticsChartConfigCard(
                         Text(
                             text = "Chart Data Frequency",
                             style = MaterialTheme.typography.titleLarge,
-                            color = Color(0xFF52637E)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         AnalyticsDropdownField(
@@ -502,7 +502,7 @@ private fun AnalyticsTextFieldBlock(
         Text(
             text = label,
             style = MaterialTheme.typography.titleLarge,
-            color = Color(0xFF52637E)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
         content()
@@ -573,6 +573,6 @@ private fun DividerLine() {
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(Color(0xFFDCE3ED))
+            .background(MaterialTheme.colorScheme.outlineVariant)
     )
 }

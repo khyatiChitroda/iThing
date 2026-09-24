@@ -32,7 +32,6 @@ import com.ithing.mobile.R
 import com.ithing.mobile.presentation.components.IThingCard
 import com.ithing.mobile.presentation.components.IThingPrimaryButton
 import com.ithing.mobile.presentation.components.IThingTextField
-import com.ithing.mobile.presentation.theme.DarkText
 import com.ithing.mobile.presentation.theme.Slate400
 import com.ithing.mobile.presentation.theme.Slate600
 import com.ithing.mobile.presentation.theme.Theme1Blue
@@ -118,7 +117,7 @@ fun ChangePasswordScreen(
                         isError = uiState.newPasswordError != null,
                         errorMessage = uiState.newPasswordError,
                         cornerRadius = 12.dp,
-                        textColor = DarkText,
+                        textColor = MaterialTheme.colorScheme.onSurface,
                         placeholderColor = Slate400
                     )
 
@@ -131,7 +130,7 @@ fun ChangePasswordScreen(
                         isError = uiState.confirmPasswordError != null,
                         errorMessage = uiState.confirmPasswordError,
                         cornerRadius = 12.dp,
-                        textColor = DarkText,
+                        textColor = MaterialTheme.colorScheme.onSurface,
                         placeholderColor = Slate400
                     )
 
