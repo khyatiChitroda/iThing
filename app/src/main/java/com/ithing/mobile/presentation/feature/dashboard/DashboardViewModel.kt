@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import java.time.LocalDate
@@ -55,6 +57,7 @@ class DashboardViewModel @Inject constructor(
 ) : ViewModel() {
     private var autoRefreshJob: Job? = null
     private var dashboardRefreshJob: Job? = null
+    private var chartRefreshJob: Job? = null
     private var oemsLoadJob: Job? = null
     private var customersLoadJob: Job? = null
     private var devicesLoadJob: Job? = null
@@ -74,6 +77,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onIndustrySelected(industry: Industry?, autoSelectChildren: Boolean = false) {
+        cancelDashboardRefresh()
         oemsLoadJob?.cancel()
         customersLoadJob?.cancel()
         devicesLoadJob?.cancel()
@@ -101,6 +105,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onOemSelected(oem: Oem?, autoSelectChildren: Boolean = false) {
+        cancelDashboardRefresh()
         customersLoadJob?.cancel()
         devicesLoadJob?.cancel()
         customersLoadJob = viewModelScope.launch {
@@ -125,6 +130,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onCustomerSelected(customer: Customer?, autoSelectChildren: Boolean = false) {
+        cancelDashboardRefresh()
         devicesLoadJob?.cancel()
         devicesLoadJob = viewModelScope.launch {
             _uiState.update {
@@ -146,8 +152,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onDeviceSelected(device: Device?) {
-        dashboardRefreshJob?.cancel()
-        dashboardRefreshJob = null
+        cancelDashboardRefresh()
         _uiState.update {
             it.copy(
                 selectedDevice = device,
@@ -181,8 +186,7 @@ class DashboardViewModel @Inject constructor(
     fun beginFilterEditing() {
         if (filterEditSnapshot != null) return
         stopAutoRefresh()
-        dashboardRefreshJob?.cancel()
-        dashboardRefreshJob = null
+        cancelDashboardRefresh()
         val pausedState = _uiState.value.copy(isRefreshing = false)
         filterEditSnapshot = FilterEditSnapshot(
             uiState = pausedState,
@@ -224,7 +228,7 @@ class DashboardViewModel @Inject constructor(
         oemsLoadJob?.cancel()
         customersLoadJob?.cancel()
         devicesLoadJob?.cancel()
-        dashboardRefreshJob?.cancel()
+        cancelDashboardRefresh()
         cachedWidgetsConfig = snapshot.widgetsConfig
         cachedMapping = snapshot.mapping
         cachedChartLogs = snapshot.chartLogs
@@ -234,6 +238,10 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun refreshDashboard() {
+        launchDashboardRefresh(telemetryOnly = false)
+    }
+
+    private fun launchDashboardRefresh(telemetryOnly: Boolean) {
         if (dashboardRefreshJob?.isActive == true) return
         val refreshGeneration = ++dashboardRefreshGeneration
         dashboardRefreshJob = viewModelScope.launch {
@@ -246,8 +254,7 @@ class DashboardViewModel @Inject constructor(
                     val telemetry = withTimeout(DASHBOARD_REFRESH_TIMEOUT_MS) {
                         val now = System.currentTimeMillis()
                         val shouldReloadConfiguration =
-                            cachedWidgetsConfig.isEmpty() ||
-                                cachedMapping == null ||
+                            cachedMapping == null ||
                                 now - lastConfigurationRefreshAt >= CONFIGURATION_REFRESH_INTERVAL_MS
 
                         val widgetsConfig = if (shouldReloadConfiguration) {
@@ -255,30 +262,46 @@ class DashboardViewModel @Inject constructor(
                         } else {
                             cachedWidgetsConfig
                         }
-                        cachedWidgetsConfig = widgetsConfig
 
                         val mapping = if (shouldReloadConfiguration) {
                             dashboardRepository.getDeviceMapping(deviceId).getOrThrow()
                         } else {
                             requireNotNull(cachedMapping)
                         }
+                        currentCoroutineContext().ensureActive()
+                        cachedWidgetsConfig = widgetsConfig
                         cachedMapping = mapping
                         if (shouldReloadConfiguration) lastConfigurationRefreshAt = now
-
-                        cachedChartLogs = fetchChartLogs(deviceId)
-
                         val latestLogs = dashboardRepository.getLatestEvents(
                             deviceId = deviceId,
                             lastTimeStamp = System.currentTimeMillis()
-                        ).getOrDefault(emptyList())
-
-                        val refreshedTelemetry = dashboardRepository.applyDashboardTelemetry(
-                            widgets = widgetsConfig,
-                            mappingPayload = mapping,
-                            latestLogs = latestLogs,
-                            chartLogs = cachedChartLogs
                         ).getOrThrow()
 
+                        currentCoroutineContext().ensureActive()
+                        val currentWidgets = _uiState.value.widgets.associateBy { it.id }
+                        val widgetsWithReadings = widgetsConfig.map { config ->
+                            val current = currentWidgets[config.id]
+                            if (current != null && current.deviceId == config.deviceId &&
+                                current.sources == config.sources && current.type == config.type &&
+                                current.subType == config.subType
+                            ) {
+                                config.copy(
+                                    valuesByField = current.valuesByField,
+                                    currentValue = current.currentValue,
+                                    currentValueLabel = current.currentValueLabel,
+                                    chartSeries = current.chartSeries
+                                )
+                            } else config
+                        }
+
+                        val refreshedTelemetry = dashboardRepository.applyDashboardTelemetry(
+                            widgets = widgetsWithReadings,
+                            mappingPayload = mapping,
+                            latestLogs = latestLogs,
+                            chartLogs = emptyList()
+                        ).getOrThrow()
+
+                        currentCoroutineContext().ensureActive()
                         refreshedTelemetry
                     }
                     val groups = listOf("All") + telemetry.widgets.mapNotNull { it.dashboardName }
@@ -292,11 +315,14 @@ class DashboardViewModel @Inject constructor(
                             widgets = telemetry.widgets,
                             availableGroups = groups,
                             selectedGroup = selectedGroup,
-                            lastUpdatedAt = telemetry.lastUpdatedAt,
+                            lastUpdatedAt = telemetry.lastUpdatedAt ?: it.lastUpdatedAt,
                             errorMessage = null
                         )
                     }
-                    lastFullRefreshAt = System.currentTimeMillis()
+                    if (!telemetryOnly) {
+                        lastFullRefreshAt = System.currentTimeMillis()
+                        refreshChartHistory(deviceId)
+                    }
                 } catch (ex: TimeoutCancellationException) {
                     _uiState.update {
                         it.copy(
@@ -307,7 +333,7 @@ class DashboardViewModel @Inject constructor(
                     throw ex
                 } catch (ex: Exception) {
                     _uiState.update {
-                        it.copy(errorMessage = ex.message ?: "Failed to load widgets")
+                        it.copy(errorMessage = "Unable to refresh dashboard. Please try again.")
                     }
                 } finally {
                     if (refreshGeneration == dashboardRefreshGeneration) {
@@ -335,9 +361,11 @@ class DashboardViewModel @Inject constructor(
         val needsInitialLoad =
             currentState.selectedCustomer != null &&
                 currentState.selectedDevice != null &&
-                (cachedWidgetsConfig.isEmpty() || cachedMapping == null)
+                cachedMapping == null
         if (needsInitialLoad && dashboardRefreshJob?.isActive != true) {
             refreshDashboard()
+        } else if (currentState.selectedCustomer != null && currentState.selectedDevice != null) {
+            refreshChartHistory(currentState.selectedDevice.id)
         }
         autoRefreshJob = viewModelScope.launch {
             while (isActive) {
@@ -353,16 +381,15 @@ class DashboardViewModel @Inject constructor(
                         !_uiState.value.isRefreshing
 
                 val fullRefreshIsDue =
-                    lastFullRefreshAt > 0L &&
+                    lastFullRefreshAt == 0L ||
                         System.currentTimeMillis() - lastFullRefreshAt >= FULL_REFRESH_INTERVAL_MS
-                if (canRefresh && fullRefreshIsDue) {
+                val needsConfiguration = deviceId != null &&
+                    _uiState.value.selectedCustomer != null &&
+                    mapping == null
+                if (needsConfiguration || (canRefresh && fullRefreshIsDue)) {
                     refreshDashboard()
                 } else if (canRefresh) {
-                    refreshTelemetryOnly(
-                        deviceId = deviceId!!,
-                        mapping = mapping,
-                        widgetsConfig = widgetsConfig
-                    )
+                    launchDashboardRefresh(telemetryOnly = true)
                 }
             }
         }
@@ -375,47 +402,57 @@ class DashboardViewModel @Inject constructor(
 
     fun stopDashboardWork() {
         stopAutoRefresh()
+        cancelDashboardRefresh()
+    }
+
+    private fun cancelDashboardRefresh() {
+        dashboardRefreshGeneration++
         dashboardRefreshJob?.cancel()
         dashboardRefreshJob = null
+        chartRefreshJob?.cancel()
+        chartRefreshJob = null
         _uiState.update { state ->
             if (state.isRefreshing) state.copy(isRefreshing = false) else state
         }
     }
 
-    private suspend fun refreshTelemetryOnly(
-        deviceId: String,
-        mapping: com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto,
-        widgetsConfig: List<com.ithing.mobile.domain.model.DashboardWidget>
-    ) {
-        val latestLogs = dashboardRepository.getLatestEvents(
-            deviceId = deviceId,
-            lastTimeStamp = System.currentTimeMillis()
-        ).getOrDefault(emptyList())
+    private fun refreshChartHistory(deviceId: String) {
+        if (chartRefreshJob?.isActive == true) return
+        val mapping = cachedMapping ?: return
+        val chartWidgets = _uiState.value.widgets.filter { it.type.equals("charts", ignoreCase = true) }
+        if (chartWidgets.isEmpty()) return
 
-        dashboardRepository.applyDashboardTelemetry(
-            widgets = widgetsConfig,
-            mappingPayload = mapping,
-            latestLogs = latestLogs,
-            chartLogs = emptyList()
-        ).onSuccess { telemetry ->
-            val currentWidgetsById = _uiState.value.widgets.associateBy { it.id }
-            val widgetsForDisplay = telemetry.widgets.map { refreshedWidget ->
-                val currentWidget = currentWidgetsById[refreshedWidget.id]
-                when {
-                    refreshedWidget.type.equals("charts", ignoreCase = true) ->
-                        currentWidget ?: refreshedWidget
-                    currentWidget != null &&
-                        currentWidget.valuesByField == refreshedWidget.valuesByField &&
-                        currentWidget.currentValue == refreshedWidget.currentValue -> currentWidget
-                    else -> refreshedWidget
+        chartRefreshJob = viewModelScope.launch {
+            try {
+                withTimeout(DASHBOARD_REFRESH_TIMEOUT_MS) {
+                    val chartLogs = fetchChartLogs(deviceId)
+                    val telemetry = dashboardRepository.applyDashboardTelemetry(
+                        widgets = chartWidgets,
+                        mappingPayload = mapping,
+                        latestLogs = emptyList(),
+                        chartLogs = chartLogs
+                    ).getOrThrow()
+                    currentCoroutineContext().ensureActive()
+                    cachedChartLogs = chartLogs
+                    val updatedCharts = telemetry.widgets.associateBy { it.id }
+                    _uiState.update { state ->
+                        if (state.selectedDevice?.id != deviceId) return@update state
+                        state.copy(widgets = state.widgets.map { current ->
+                            val updated = updatedCharts[current.id]
+                            if (updated != null && current.sources == updated.sources &&
+                                current.type == updated.type && current.subType == updated.subType
+                            ) {
+                                current.copy(chartSeries = updated.chartSeries)
+                            } else current
+                        })
+                    }
                 }
-            }
-            _uiState.update {
-                it.copy(
-                    widgets = widgetsForDisplay,
-                    lastUpdatedAt = telemetry.lastUpdatedAt,
-                    errorMessage = null
-                )
+            } catch (ex: TimeoutCancellationException) {
+                _uiState.update { it.copy(errorMessage = "Chart history timed out. Please try refreshing.") }
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: Exception) {
+                _uiState.update { it.copy(errorMessage = "Unable to load chart history. Please try refreshing.") }
             }
         }
     }
@@ -428,7 +465,7 @@ class DashboardViewModel @Inject constructor(
                 deviceId = deviceId,
                 timestamp = cachedChartLogs.last().timeStamp + 1L,
                 limit = DASHBOARD_CHART_LOG_LIMIT
-            ).getOrDefault(emptyList())
+            ).getOrThrow()
         }
 
         return (cachedChartLogs + newLogs)
@@ -443,18 +480,18 @@ class DashboardViewModel @Inject constructor(
             deviceId = deviceId,
             timestamp = start,
             limit = DASHBOARD_CHART_LOG_LIMIT
-        ).getOrDefault(emptyList())
+        ).getOrThrow()
         val firstTimestamp = firstBatch.firstOrNull()?.timeStamp ?: return emptyList()
         val end = System.currentTimeMillis()
         var slot = firstTimestamp - (firstTimestamp % ONE_HOUR_MS) + (ONE_HOUR_MS / 2L)
-        val hourlyLogs = mutableListOf<DashboardEventLogDto>()
+        val hourlyLogs = firstBatch.toMutableList()
 
         while (slot < end) {
             val hourlyBatch = dashboardRepository.getLogsAfter(
                 deviceId = deviceId,
                 timestamp = slot,
                 limit = DASHBOARD_CHART_LOG_LIMIT
-            ).getOrDefault(emptyList())
+            ).getOrThrow()
             hourlyLogs.addAll(hourlyBatch)
             slot += ONE_HOUR_MS
         }
