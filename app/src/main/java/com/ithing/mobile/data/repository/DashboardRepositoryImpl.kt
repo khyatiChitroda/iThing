@@ -222,8 +222,8 @@ class DashboardRepositoryImpl @Inject constructor(
         chartLogs: List<DashboardEventLogDto>
     ): Result<DashboardTelemetryResult> = withContext(Dispatchers.Default) {
         runCatching {
-        val collatedLatestLogs = collateParsedEvents(latestLogs, mappingPayload)
-        val latestLog = collatedLatestLogs.lastOrNull()
+        val collatedLatestLogs = collateParsedEvents(latestLogs, mappingPayload, collateNearby = false)
+        val latestLog = collatedLatestLogs.lastOrNull { it.values.isNotEmpty() }
 
         val hasChartWidgets = widgets.any { it.type.equals("charts", ignoreCase = true) }
         val collatedChartLogs = if (hasChartWidgets && chartLogs.isNotEmpty()) {
@@ -263,11 +263,17 @@ class DashboardRepositoryImpl @Inject constructor(
             val valuesByField = allFields
                 .distinct()
                 .mapNotNull { field ->
-                    latestLog?.valueForField(field)?.let { value -> field to value }
+                    // Devices can send different registers in separate records.
+                    val value = collatedLatestLogs.asReversed().firstNotNullOfOrNull { log ->
+                        log.valueForField(field)
+                    } ?: widget.valuesByField[field]
+                    value?.let { field to it }
                 }
                 .toMap()
 
-            val chartSeries = if (widget.type.equals("charts", ignoreCase = true)) {
+            val chartSeries = if (chartLogs.isEmpty()) {
+                widget.chartSeries
+            } else if (widget.type.equals("charts", ignoreCase = true)) {
                 widget.sources
                     .flatMap { source -> source.fields }
                     .distinct()
@@ -545,8 +551,11 @@ class DashboardRepositoryImpl @Inject constructor(
                 val byteIndex = address.b?.removePrefix("B")?.toIntOrNull()?.minus(1) ?: return@mapNotNull null
                 frame to byteIndex
             }
+            if (addresses.isEmpty() || addresses.any { (frame, _) -> rawData[frame].isNullOrBlank() }) {
+                return@forEach
+            }
             val rawValue = addresses.joinToString(separator = "") { (frame, _) -> rawData[frame].orEmpty() }
-            val numeric = rawValue.toDoubleOrNull() ?: 0.0
+            val numeric = rawValue.toDoubleOrNull() ?: return@forEach
             out.putRegisterValue(registerName, applyScaling(numeric, field))
         }
         return out
@@ -567,6 +576,7 @@ class DashboardRepositoryImpl @Inject constructor(
 
             val names = field.dName.filter { it.isNotBlank() }
             if (names.isEmpty()) return@forEach
+            if (names.any { rawData[it]?.toIntOrNull() == null }) return@forEach
 
             val value = when (field.dataType?.lowercase()) {
                 "float" -> {

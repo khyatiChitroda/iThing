@@ -6,12 +6,15 @@ import com.ithing.mobile.data.remote.dto.reports.DeviceMappingPayloadDto
 import com.ithing.mobile.domain.model.DashboardTelemetryResult
 import com.ithing.mobile.domain.model.Customer
 import com.ithing.mobile.domain.model.DashboardWidget
+import com.ithing.mobile.domain.model.DashboardWidgetPoint
+import com.ithing.mobile.domain.model.DashboardWidgetSeries
 import com.ithing.mobile.domain.model.Device
 import com.ithing.mobile.domain.model.Industry
 import com.ithing.mobile.domain.model.Oem
 import com.ithing.mobile.domain.repository.DashboardRepository
 import com.ithing.mobile.domain.usecase.LogoutUseCase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -74,7 +77,7 @@ class DashboardViewModelTest {
         assertEquals("Device 1", state.selectedDevice?.name)
         assertEquals(1, dashboardRepository.dashboardWidgetRequestCount)
         assertEquals(1, dashboardRepository.deviceMappingRequestCount)
-        assertEquals(1, dashboardRepository.chartLogRequests.size)
+        assertEquals(0, dashboardRepository.chartLogRequests.size)
     }
 
     @Test
@@ -149,9 +152,7 @@ class DashboardViewModelTest {
         assertEquals(listOf("Throughput"), state.widgets.map { it.title })
         assertEquals("customer-b", dashboardRepository.lastRequestedCustomerId)
         assertEquals("device-c", dashboardRepository.lastRequestedDeviceId)
-        assertTrue(dashboardRepository.chartLogRequests.isNotEmpty())
-        assertEquals(1, dashboardRepository.chartLogRequests.size)
-        assertTrue(dashboardRepository.chartLogRequests.all { it.limit == 2_000 })
+        assertEquals(0, dashboardRepository.chartLogRequests.size)
     }
 
     @Test
@@ -189,6 +190,8 @@ class DashboardViewModelTest {
         viewModel.onIndustrySelected(Industry(id = "auto", name = "Automotive"))
         advanceUntilIdle()
         viewModel.cancelFilterEditing()
+        runCurrent()
+        viewModel.stopAutoRefresh()
         advanceUntilIdle()
 
         assertEquals(originalState.selectedIndustry, viewModel.uiState.value.selectedIndustry)
@@ -215,6 +218,8 @@ class DashboardViewModelTest {
         viewModel.onIndustrySelected(Industry(id = "auto", name = "Automotive"))
         advanceUntilIdle()
         viewModel.applyFilterEditing()
+        runCurrent()
+        viewModel.stopAutoRefresh()
         advanceUntilIdle()
 
         verify(sessionManager).saveDashboardFilters(
@@ -245,7 +250,187 @@ class DashboardViewModelTest {
 
         assertEquals(1, dashboardRepository.dashboardWidgetRequestCount)
         assertEquals(1, dashboardRepository.deviceMappingRequestCount)
+        assertEquals(0, dashboardRepository.chartLogRequests.size)
+    }
+
+    @Test
+    fun `slow history does not block first dashboard or automatic telemetry`() = runTest {
+        dashboardRepository.hasChartWidgets = true
+        dashboardRepository.chartLogsDelayMs = 60_000L
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        runCurrent()
+
+        assertEquals(1, viewModel.uiState.value.widgets.size)
+        assertFalse(viewModel.uiState.value.isRefreshing)
         assertEquals(1, dashboardRepository.chartLogRequests.size)
+        assertEquals(1, dashboardRepository.latestEventsRequestCount)
+
+        viewModel.startAutoRefresh(intervalMs = 1_000L)
+        advanceTimeBy(3_500L)
+        runCurrent()
+
+        assertEquals(4, dashboardRepository.latestEventsRequestCount)
+        assertEquals(1, dashboardRepository.dashboardWidgetRequestCount)
+        assertEquals(1, dashboardRepository.chartLogRequests.size)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        viewModel.stopDashboardWork()
+        advanceUntilIdle()
+        assertTrue(dashboardRepository.lastAppliedChartLogs.isEmpty())
+    }
+
+    @Test
+    fun `paused history restarts on resume without reloading widget configuration`() = runTest {
+        dashboardRepository.hasChartWidgets = true
+        dashboardRepository.chartLogsDelayMs = 60_000L
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        runCurrent()
+        viewModel.stopDashboardWork()
+        runCurrent()
+
+        viewModel.startAutoRefresh()
+        runCurrent()
+
+        assertEquals(2, dashboardRepository.chartLogRequests.size)
+        assertEquals(1, dashboardRepository.dashboardWidgetRequestCount)
+        assertEquals(1, viewModel.uiState.value.widgets.size)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        viewModel.stopDashboardWork()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `history timeout leaves current dashboard visible`() = runTest {
+        dashboardRepository.hasChartWidgets = true
+        dashboardRepository.chartLogsDelayMs = 120_000L
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.widgets.size)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        assertEquals("Chart history timed out. Please try refreshing.", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `history failure leaves first dashboard visible`() = runTest {
+        dashboardRepository.hasChartWidgets = true
+        dashboardRepository.chartLogsError = IllegalStateException("History unavailable")
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.widgets.size)
+        assertEquals(1, dashboardRepository.latestEventsRequestCount)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        assertEquals("Unable to load chart history. Please try refreshing.", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `late history updates only charts and retains newer current readings`() = runTest {
+        dashboardRepository.hasChartWidgets = true
+        dashboardRepository.chartLogsDelayMs = 5_000L
+        dashboardRepository.chartLogs = listOf(DashboardEventLogDto(timeStamp = System.currentTimeMillis()))
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        runCurrent()
+        val current = viewModel.uiState.value.widgets.single().copy(currentValue = 22.0)
+        dashboardRepository.telemetryResult = DashboardTelemetryResult(listOf(current), 123L)
+
+        viewModel.refreshDashboard()
+        runCurrent()
+        advanceUntilIdle()
+
+        assertEquals(22.0, viewModel.uiState.value.widgets.single().currentValue)
+        assertEquals(123L, viewModel.uiState.value.lastUpdatedAt)
+        assertTrue(viewModel.uiState.value.widgets.single().chartSeries.isNotEmpty())
+    }
+
+    @Test
+    fun `initial chart batch is included in telemetry`() = runTest {
+        dashboardRepository.hasChartWidgets = true
+        val log = DashboardEventLogDto(timeStamp = System.currentTimeMillis(), data = mapOf("D1" to "18"))
+        dashboardRepository.chartLogs = listOf(log)
+        DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        advanceUntilIdle()
+
+        assertEquals(listOf(log), dashboardRepository.lastAppliedChartLogs)
+    }
+
+    @Test
+    fun `failed refresh keeps displayed readings and timestamp`() = runTest {
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        advanceUntilIdle()
+        val reading = viewModel.uiState.value.widgets.single().copy(
+            valuesByField = mapOf("Temperature" to 18.0), currentValue = 18.0
+        )
+        dashboardRepository.telemetryResult = DashboardTelemetryResult(listOf(reading), 123L)
+        viewModel.refreshDashboard()
+        advanceUntilIdle()
+        dashboardRepository.latestEventsError = IllegalStateException("Offline")
+
+        viewModel.refreshDashboard()
+        advanceUntilIdle()
+
+        assertEquals(listOf(reading), viewModel.uiState.value.widgets)
+        assertEquals(123L, viewModel.uiState.value.lastUpdatedAt)
+        assertEquals("Unable to refresh dashboard. Please try again.", viewModel.uiState.value.errorMessage)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    fun `empty refresh passes previous readings to telemetry and keeps timestamp`() = runTest {
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        advanceUntilIdle()
+        val reading = viewModel.uiState.value.widgets.single().copy(
+            valuesByField = mapOf("Temperature" to 18.0), currentValue = 18.0
+        )
+        dashboardRepository.telemetryResult = DashboardTelemetryResult(listOf(reading), 123L)
+        viewModel.refreshDashboard()
+        advanceUntilIdle()
+        dashboardRepository.telemetryResult = null
+
+        viewModel.startAutoRefresh(intervalMs = 1_000L)
+        advanceTimeBy(1_000L)
+        runCurrent()
+        viewModel.stopDashboardWork()
+
+        assertEquals(18.0, viewModel.uiState.value.widgets.single().currentValue)
+        assertEquals(123L, viewModel.uiState.value.lastUpdatedAt)
+    }
+
+    @Test
+    fun `manual refresh does not overlap automatic request and pause cancels it`() = runTest {
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        advanceUntilIdle()
+        dashboardRepository.latestEventsDelayMs = 5_000L
+        val requestsBefore = dashboardRepository.latestEventsRequestCount
+        viewModel.startAutoRefresh(intervalMs = 1_000L)
+        advanceTimeBy(1_000L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isRefreshing)
+
+        viewModel.refreshDashboard()
+        runCurrent()
+        assertEquals(requestsBefore + 1, dashboardRepository.latestEventsRequestCount)
+        viewModel.stopDashboardWork()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        assertEquals(requestsBefore + 1, dashboardRepository.latestEventsRequestCount)
+    }
+
+    @Test
+    fun `device change does not reuse previous device readings`() = runTest {
+        val viewModel = DashboardViewModel(logoutUseCase, dashboardRepository, sessionManager)
+        advanceUntilIdle()
+        val reading = viewModel.uiState.value.widgets.single().copy(currentValue = 18.0)
+        dashboardRepository.telemetryResult = DashboardTelemetryResult(listOf(reading), 123L)
+        viewModel.refreshDashboard()
+        advanceUntilIdle()
+        dashboardRepository.telemetryResult = null
+
+        viewModel.onDeviceSelected(viewModel.uiState.value.devices.last())
+        advanceUntilIdle()
+
+        assertEquals(null, viewModel.uiState.value.widgets.single().currentValue)
+        assertEquals(null, viewModel.uiState.value.lastUpdatedAt)
     }
 
     private class FakeDashboardRepository : DashboardRepository {
@@ -255,6 +440,15 @@ class DashboardViewModelTest {
         var dashboardWidgetRequestCount: Int = 0
         var deviceMappingRequestCount: Int = 0
         var telemetryError: Throwable? = null
+        var telemetryResult: DashboardTelemetryResult? = null
+        var latestEventsError: Throwable? = null
+        var latestEventsDelayMs: Long = 0L
+        var latestEventsRequestCount: Int = 0
+        var hasChartWidgets: Boolean = false
+        var chartLogsDelayMs: Long = 0L
+        var chartLogsError: Throwable? = null
+        var chartLogs: List<DashboardEventLogDto> = emptyList()
+        var lastAppliedChartLogs: List<DashboardEventLogDto> = emptyList()
         val chartLogRequests = mutableListOf<ChartLogRequest>()
 
         private val fakeIndustries = listOf(
@@ -326,7 +520,7 @@ class DashboardViewModelTest {
             lastRequestedCustomerId = customerId
             lastRequestedDeviceId = deviceId
 
-            return Result.success(fakeWidgets)
+            return Result.success(fakeWidgets.map { if (hasChartWidgets) it.copy(type = "charts") else it })
         }
 
         override suspend fun getDeviceMapping(deviceId: String): Result<DeviceMappingPayloadDto> {
@@ -338,7 +532,9 @@ class DashboardViewModelTest {
             deviceId: String,
             lastTimeStamp: Long
         ): Result<List<DashboardEventLogDto>> {
-            return Result.success(emptyList())
+            latestEventsRequestCount++
+            delay(latestEventsDelayMs)
+            return latestEventsError?.let(Result.Companion::failure) ?: Result.success(emptyList())
         }
 
         override suspend fun getLogsAfter(
@@ -351,7 +547,8 @@ class DashboardViewModelTest {
                 timestamp = timestamp,
                 limit = limit
             )
-            return Result.success(emptyList())
+            delay(chartLogsDelayMs)
+            return chartLogsError?.let(Result.Companion::failure) ?: Result.success(chartLogs)
         }
 
         override suspend fun applyDashboardTelemetry(
@@ -360,8 +557,16 @@ class DashboardViewModelTest {
             latestLogs: List<DashboardEventLogDto>,
             chartLogs: List<DashboardEventLogDto>
         ): Result<DashboardTelemetryResult> {
+            lastAppliedChartLogs = chartLogs
+            if (chartLogs.isNotEmpty()) {
+                return Result.success(DashboardTelemetryResult(widgets.map { widget ->
+                    widget.copy(chartSeries = listOf(DashboardWidgetSeries(
+                        "History", chartLogs.map { DashboardWidgetPoint(it.timeStamp, "sample", 18.0) }
+                    )))
+                }))
+            }
             return telemetryError?.let(Result.Companion::failure)
-                ?: Result.success(DashboardTelemetryResult(widgets = widgets))
+                ?: Result.success(telemetryResult ?: DashboardTelemetryResult(widgets = widgets))
         }
 
         data class ChartLogRequest(
