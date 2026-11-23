@@ -8,7 +8,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -33,16 +37,23 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             IThingMobileTheme(darkTheme = false) {
+                var showAppContent by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
-                    withFrameNanos { }
-                    delay(1000)
-                    isUiReady = true
+                    delay(APP_ICON_DURATION_MS)
+                    showAppContent = true
                 }
-                val navController = rememberNavController()
-                AppNavGraph(navController = navController)
+                if (showAppContent) {
+                    val navController = rememberNavController()
+                    AppNavGraph(navController = navController)
+                    SideEffect { isUiReady = true }
+                }
             }
 
         }
+    }
+
+    private companion object {
+        const val APP_ICON_DURATION_MS = 1_000L
     }
 }
 

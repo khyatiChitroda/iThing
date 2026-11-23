@@ -4,11 +4,14 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -24,10 +27,11 @@ fun SplashScreen() {
         visible = true
     }
 
+    val colors = MaterialTheme.colorScheme
     val background = Brush.verticalGradient(
         colors = listOf(
-            MaterialTheme.colorScheme.background,
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+            colors.primary,
+            lerp(colors.primary, colors.onPrimary, 0.16f)
         )
     )
 
@@ -59,8 +63,8 @@ fun SplashScreen() {
                 painter = painterResource(R.drawable.splash_illustration),
                 contentDescription = "Illustration",
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(260.dp)
+                    .size(260.dp)
+                    .clip(RoundedCornerShape(24.dp))
             )
         }
 
@@ -76,7 +80,7 @@ fun SplashScreen() {
                     text = "Empowering Businesses with\nSmarter IoT Insights!",
                     fontSize = 20.sp,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.primary
+                    color = colors.onPrimary
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -85,7 +89,7 @@ fun SplashScreen() {
                     text = "Device management, data collection, processing and visualization for your IoT solution",
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    color = colors.onPrimary.copy(alpha = 0.85f),
                     lineHeight = 18.sp
                 )
             }

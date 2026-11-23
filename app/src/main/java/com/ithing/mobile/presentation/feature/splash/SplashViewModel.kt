@@ -37,10 +37,6 @@ class SplashViewModel @Inject constructor(
                 sessionManager.clearSession()
             }
 
-//            val remainingSplashTime = MIN_SPLASH_DURATION_MS - (SystemClock.elapsedRealtime() - startTime)
-//            if (remainingSplashTime > 0) {
-//                delay(remainingSplashTime)
-//            }
             val remainingSplashTime =
                 MIN_SPLASH_DURATION_MS - (SystemClock.elapsedRealtime() - startTime)
             if (remainingSplashTime > 0) {
@@ -56,6 +52,6 @@ class SplashViewModel @Inject constructor(
     }
 
     private companion object {
-        const val MIN_SPLASH_DURATION_MS = 1200L
+        const val MIN_SPLASH_DURATION_MS = 5_000L
     }
 }
